@@ -60,11 +60,64 @@ function normalize(reply) {
   return { branches, datesAsc, matrix };
 }
 
+const CACHE_KEY = "smdt_data_cache";
+let globalCache = null; // RAM Cache to keep data alive across hook remounts
+
+function getCachedData() {
+  if (globalCache) return globalCache;
+  try {
+    const serialized = localStorage.getItem(CACHE_KEY);
+    if (!serialized) return null;
+    const parsed = JSON.parse(serialized);
+    if (parsed && parsed.branches && parsed.datesAsc && parsed.matrix) {
+      globalCache = {
+        branches: parsed.branches,
+        datesAsc: parsed.datesAsc,
+        matrix: parsed.matrix,
+        updatedAt: parsed.updatedAt ? new Date(parsed.updatedAt) : null,
+      };
+      return globalCache;
+    }
+  } catch (e) {
+    console.warn("Failed to load SMDT cache:", e);
+  }
+  return null;
+}
+
+function setCachedData(data) {
+  try {
+    const toStore = {
+      branches: data.branches,
+      datesAsc: data.datesAsc,
+      matrix: data.matrix,
+      updatedAt: data.updatedAt ? data.updatedAt.toISOString() : null,
+    };
+    localStorage.setItem(CACHE_KEY, JSON.stringify(toStore));
+  } catch (e) {
+    console.warn("Failed to save SMDT cache:", e);
+  }
+}
+
 export function useSMDT() {
-  const [state, setState] = useState({ branches: [], datesAsc: [], matrix: {} });
-  const [status, setStatus] = useState("loading"); // loading | ready | error
+  const [state, setState] = useState(() => {
+    const cached = getCachedData();
+    if (cached) {
+      return { branches: cached.branches, datesAsc: cached.datesAsc, matrix: cached.matrix };
+    }
+    return { branches: [], datesAsc: [], matrix: {} };
+  });
+
+  const [status, setStatus] = useState(() => {
+    const cached = getCachedData();
+    return cached ? "ready" : "loading";
+  });
+
   const [error, setError] = useState(null);
-  const [updatedAt, setUpdatedAt] = useState(null);
+
+  const [updatedAt, setUpdatedAt] = useState(() => {
+    const cached = getCachedData();
+    return cached ? cached.updatedAt : null;
+  });
 
   const fetchSnapshot = useCallback(async () => {
     setStatus((s) => (s === "ready" ? "ready" : "loading"));
@@ -78,13 +131,29 @@ export function useSMDT() {
       const json = await res.json();
       const code = json?.SMDTBranchReply?.codeReply?.codeID;
       if (code && code !== "S0000") throw new Error(`API ${code}`);
-      setState(normalize(json));
-      setUpdatedAt(new Date());
+
+      const normalized = normalize(json);
+      const now = new Date();
+
+      setState(normalized);
+      setUpdatedAt(now);
       setStatus("ready");
       setError(null);
+
+      // Save to global and localStorage cache
+      const cacheVal = { ...normalized, updatedAt: now };
+      globalCache = cacheVal;
+      setCachedData(cacheVal);
     } catch (e) {
-      setError(e.message || "Lỗi tải dữ liệu");
-      setStatus((s) => (s === "ready" ? "ready" : "error"));
+      console.error("SMDT Fetch error:", e);
+      const cached = getCachedData();
+      if (cached) {
+        setError(null); // Keep display clean if cached data exists
+        setStatus("ready");
+      } else {
+        setError(e.message || "Lỗi tải dữ liệu");
+        setStatus("error");
+      }
     }
   }, []);
 
@@ -100,7 +169,16 @@ export function useSMDT() {
       const datesAsc = prev.datesAsc.includes(date)
         ? prev.datesAsc
         : [...prev.datesAsc, date].sort();
-      return { ...prev, matrix, datesAsc };
+
+      const nextState = { ...prev, matrix, datesAsc };
+      const now = new Date();
+
+      // Update global and localStorage cache with realtime updates
+      const cacheVal = { ...nextState, updatedAt: now };
+      globalCache = cacheVal;
+      setCachedData(cacheVal);
+
+      return nextState;
     });
     setUpdatedAt(new Date());
   }, []);
