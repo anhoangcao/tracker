@@ -7,5 +7,13 @@ export default defineConfig({
   server: {
     port: 3000,
     open: true,
+    proxy: {
+      // Proxy SMDT API to avoid CORS during local dev
+      "/service": {
+        target: "https://stocktraders.vn",
+        changeOrigin: true,
+        secure: true,
+      },
+    },
   },
 });

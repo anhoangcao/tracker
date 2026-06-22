@@ -8,6 +8,7 @@ import { InvestorProfile } from "../components/sections/InvestorProfile";
 import { Portfolio } from "../components/sections/Portfolio";
 import { SectorFlowList, SectorStrengthList, StockFlowList, StockStrengthList } from "../components/sections/TopLists";
 import { AIAdvisor } from "../components/sections/AIAdvisor";
+import SMDTNganh from "../components/sections/SMDTNganh";
 
 /* ─────────────────────────── DESKTOP LAYOUT ────────────────────────── */
 export const DesktopDashboard = () => {
@@ -27,24 +28,30 @@ export const DesktopDashboard = () => {
             overflowY: "auto",
           }}
         >
-          <MarketBanner />
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }}>
-            <MoneyFlow />
-            <InvestorProfile />
-            <Portfolio />
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-            <SectorFlowList />
-            <SectorStrengthList />
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-            <StockFlowList />
-            <StockStrengthList />
-          </div>
-          <AIAdvisor />
-          <div style={{ textAlign: "center", fontSize: 11, color: T.text3, padding: "4px 0 8px" }}>
-            Dữ liệu chỉ mang tính tham khảo, không phải lời khuyên đầu tư.
-          </div>
+          {navActive === "SMDT ngành" ? (
+            <SMDTNganh />
+          ) : (
+            <>
+              <MarketBanner />
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }}>
+                <MoneyFlow />
+                <InvestorProfile />
+                <Portfolio />
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                <SectorFlowList />
+                <SectorStrengthList />
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                <StockFlowList />
+                <StockStrengthList />
+              </div>
+              <AIAdvisor />
+              <div style={{ textAlign: "center", fontSize: 11, color: T.text3, padding: "4px 0 8px" }}>
+                Dữ liệu chỉ mang tính tham khảo, không phải lời khuyên đầu tư.
+              </div>
+            </>
+          )}
         </main>
       </div>
     </div>
