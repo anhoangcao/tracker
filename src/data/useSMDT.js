@@ -10,9 +10,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
  *   trỏ tới gateway phía sau Kafka.
  * ─────────────────────────────────────────────────────────────────────── */
 
-// Khi chạy qua vite proxy ("/service" -> stocktraders.vn) sẽ tránh được CORS.
-const API_URL = "/service/data/getSMDTBranch";
-const ACCOUNT = "uyen.png";
+const API_URL = "/api/smdt?limit=150";
 
 /** keyName -> nhãn hiển thị ngắn gọn cho 6 ngành "Chủ lực". */
 export const CORE_BRANCHES = [
@@ -122,11 +120,7 @@ export function useSMDT() {
   const fetchSnapshot = useCallback(async () => {
     setStatus((s) => (s === "ready" ? "ready" : "loading"));
     try {
-      const res = await fetch(API_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ SMDTBranchRequest: { account: ACCOUNT } }),
-      });
+      const res = await fetch(API_URL);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
       const code = json?.SMDTBranchReply?.codeReply?.codeID;
