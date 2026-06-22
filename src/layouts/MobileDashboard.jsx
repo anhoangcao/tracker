@@ -10,6 +10,7 @@ import { MoneyFlow } from "../components/sections/MoneyFlow";
 import { InvestorProfile } from "../components/sections/InvestorProfile";
 import { Portfolio } from "../components/sections/Portfolio";
 import { AIAdvisor } from "../components/sections/AIAdvisor";
+import SMDTNganh from "../components/sections/SMDTNganh";
 
 /* ─────────────────────────── MOBILE LAYOUT ─────────────────────────── */
 export const MobileDashboard = () => {
@@ -172,12 +173,18 @@ export const MobileDashboard = () => {
           paddingBottom: "calc(80px + env(safe-area-inset-bottom,0px))",
         }}
       >
-        <MarketBanner />
-        <MoneyFlow />
-        <TopTabSwitcher />
-        <AIAdvisor />
-        <InvestorProfile />
-        <Portfolio />
+        {navActive === "SMDT ngành" ? (
+          <SMDTNganh />
+        ) : (
+          <>
+            <MarketBanner />
+            <MoneyFlow />
+            <TopTabSwitcher />
+            <AIAdvisor />
+            <InvestorProfile />
+            <Portfolio />
+          </>
+        )}
         <div style={{ textAlign: "center", fontSize: 11, color: T.text3 }}>
           Dữ liệu chỉ mang tính tham khảo, không phải lời khuyên đầu tư.
         </div>
