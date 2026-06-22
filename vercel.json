@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    {
+      "source": "/service/:path*",
+      "destination": "https://stocktraders.vn/service/:path*"
+    }
+  ]
+}
