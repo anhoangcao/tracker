@@ -1,13 +1,14 @@
 // Global memory cache in Serverless Function
 let serverCache = null;
 let lastFetched = 0;
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+const CACHE_DURATION = 15 * 1000; // Keep proxy cache short so the UI can auto-refresh.
 
 export default async function handler(req, res) {
   // Enable CORS
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader("Cache-Control", "no-store, max-age=0");
 
   if (req.method === "OPTIONS") {
     return res.status(200).end();

@@ -12,6 +12,12 @@ import { io } from "socket.io-client";
  * ─────────────────────────────────────────────────────────────────────── */
 
 const API_URL = "/api/smdt?limit=150";
+const DEFAULT_REFRESH_MS = 15_000;
+
+function getRefreshMs() {
+  const configured = Number(import.meta.env.VITE_SMDT_REFRESH_MS);
+  return Number.isFinite(configured) && configured > 0 ? configured : DEFAULT_REFRESH_MS;
+}
 
 /** keyName -> nhãn hiển thị ngắn gọn cho 6 ngành "Chủ lực". */
 export const CORE_BRANCHES = [
@@ -80,6 +86,14 @@ function toRealtimeTick(item) {
 function extractRealtimeTicks(payload) {
   if (!payload) return [];
 
+  if (typeof payload === "string") {
+    try {
+      return extractRealtimeTicks(JSON.parse(payload));
+    } catch {
+      return [];
+    }
+  }
+
   if (Array.isArray(payload)) {
     return payload.flatMap(extractRealtimeTicks);
   }
@@ -137,6 +151,8 @@ function setCachedData(data) {
 }
 
 export function useSMDT() {
+  const inFlightRef = useRef(null);
+
   const [state, setState] = useState(() => {
     const cached = getCachedData();
     if (cached) {
@@ -157,42 +173,75 @@ export function useSMDT() {
     return cached ? cached.updatedAt : null;
   });
 
-  const fetchSnapshot = useCallback(async () => {
-    setStatus((s) => (s === "ready" ? "ready" : "loading"));
-    try {
-      const res = await fetch(API_URL);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = await res.json();
-      const code = json?.SMDTBranchReply?.codeReply?.codeID;
-      if (code && code !== "S0000") throw new Error(`API ${code}`);
+  const fetchSnapshot = useCallback(async ({ background = false, force = false } = {}) => {
+    if (inFlightRef.current && !force) return inFlightRef.current;
 
-      const normalized = normalize(json);
-      const now = new Date();
-
-      setState(normalized);
-      setUpdatedAt(now);
-      setStatus("ready");
-      setError(null);
-
-      // Save to global and localStorage cache
-      const cacheVal = { ...normalized, updatedAt: now };
-      globalCache = cacheVal;
-      setCachedData(cacheVal);
-    } catch (e) {
-      console.error("SMDT Fetch error:", e);
-      const cached = getCachedData();
-      if (cached) {
-        setError(null); // Keep display clean if cached data exists
-        setStatus("ready");
-      } else {
-        setError(e.message || "Lỗi tải dữ liệu");
-        setStatus("error");
+    let request;
+    request = (async () => {
+      if (!background) {
+        setStatus((s) => (s === "ready" ? "ready" : "loading"));
       }
-    }
+      try {
+        const separator = API_URL.includes("?") ? "&" : "?";
+        const res = await fetch(`${API_URL}${separator}_=${Date.now()}`, {
+          cache: "no-store",
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = await res.json();
+        const code = json?.SMDTBranchReply?.codeReply?.codeID;
+        if (code && code !== "S0000") throw new Error(`API ${code}`);
+
+        const normalized = normalize(json);
+        const now = new Date();
+
+        setState(normalized);
+        setUpdatedAt(now);
+        setStatus("ready");
+        setError(null);
+
+        // Save to global and localStorage cache
+        const cacheVal = { ...normalized, updatedAt: now };
+        globalCache = cacheVal;
+        setCachedData(cacheVal);
+      } catch (e) {
+        console.error("SMDT Fetch error:", e);
+        const cached = getCachedData();
+        if (cached) {
+          setError(null); // Keep display clean if cached data exists
+          setStatus("ready");
+        } else {
+          setError(e.message || "Lỗi tải dữ liệu");
+          setStatus("error");
+        }
+      } finally {
+        if (inFlightRef.current === request) {
+          inFlightRef.current = null;
+        }
+      }
+    })();
+
+    inFlightRef.current = request;
+    return request;
   }, []);
 
   useEffect(() => {
     fetchSnapshot();
+
+    const refresh = () => {
+      if (document.visibilityState === "visible") {
+        fetchSnapshot({ background: true });
+      }
+    };
+
+    const timer = window.setInterval(refresh, getRefreshMs());
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
   }, [fetchSnapshot]);
 
   /** Merge dữ liệu realtime vào state (dùng cho feed Kafka/Socket.IO). */
@@ -239,7 +288,7 @@ export function useSMDT() {
     setUpdatedAt(now);
   }, []);
 
-  return { ...state, status, error, updatedAt, refresh: fetchSnapshot, applyTick };
+  return { ...state, status, error, updatedAt, refresh: () => fetchSnapshot({ force: true }), applyTick };
 }
 
 /* ───────────────────────────────────────────────────────────────────────
@@ -259,6 +308,12 @@ export function useRealtimeFeed(onTick) {
       autoConnect: true,
     });
 
+    const handlePayload = (payload) => {
+      if (extractRealtimeTicks(payload).length > 0) {
+        cbRef.current?.(payload);
+      }
+    };
+
     socket.on("connect", () => {
       console.log("Socket.IO connected to namespace:", socket.nsp);
       socket.emit("message", {
@@ -267,9 +322,10 @@ export function useRealtimeFeed(onTick) {
       });
     });
 
-    socket.on("message", (payload) => {
-      if (payload?.channel === "smdt-branch" && payload?.data) {
-        cbRef.current?.(payload.data);
+    socket.onAny((event, ...args) => {
+      if (event === "connect" || event === "disconnect" || event === "connect_error") return;
+      for (const payload of args) {
+        handlePayload(payload);
       }
     });
 

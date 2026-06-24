@@ -4,7 +4,7 @@ import react from "@vitejs/plugin-react";
 // Local cache variables for dev server
 let devCache = null;
 let devLastFetched = 0;
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+const CACHE_DURATION = 15 * 1000; // Keep local proxy cache short so auto-refresh sees new data.
 
 function smdtDevPlugin() {
   return {
@@ -62,6 +62,7 @@ function smdtDevPlugin() {
 
             res.statusCode = 200;
             res.setHeader("Content-Type", "application/json");
+            res.setHeader("Cache-Control", "no-store, max-age=0");
             res.end(JSON.stringify(reply));
           } catch (err) {
             res.statusCode = 500;
