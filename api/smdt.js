@@ -1,7 +1,7 @@
 // Global memory cache in Serverless Function
 let serverCache = null;
 let lastFetched = 0;
-const CACHE_DURATION = 15 * 1000; // Keep proxy cache short so the UI can auto-refresh.
+const CACHE_DURATION = 3 * 1000; // Realtime là đường chính; proxy chỉ phục vụ snapshot ban đầu + lưới dự phòng, giữ ngắn để tươi.
 
 export default async function handler(req, res) {
   // Enable CORS

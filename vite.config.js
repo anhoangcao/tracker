@@ -4,7 +4,7 @@ import react from "@vitejs/plugin-react";
 // Local cache variables for dev server
 let devCache = null;
 let devLastFetched = 0;
-const CACHE_DURATION = 15 * 1000; // Keep local proxy cache short so auto-refresh sees new data.
+const CACHE_DURATION = 3 * 1000; // Realtime là đường chính; proxy chỉ phục vụ snapshot ban đầu + lưới dự phòng, giữ ngắn để tươi.
 
 function smdtDevPlugin() {
   return {

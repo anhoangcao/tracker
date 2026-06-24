@@ -27,8 +27,8 @@ const SESSION_OPTIONS = [10, 25, 50];
 export default function SMDTNganh() {
   const { branches, datesAsc, matrix, status, error, updatedAt, refresh, applyTick } = useSMDT();
 
-  // Cắm feed realtime (Kafka -> WebSocket). No-op nếu chưa cấu hình URL.
-  useRealtimeFeed(applyTick);
+  // Cắm feed realtime (Kafka -> Socket.IO). Đường cập nhật chính, tức thì.
+  const { connected: live } = useRealtimeFeed(applyTick);
 
   const [tab, setTab] = useState("core"); // core | sub
   const [query, setQuery] = useState("");
@@ -191,10 +191,14 @@ export default function SMDTNganh() {
         <Pagination page={safePage} totalPages={totalPages} onChange={setPage} />
       )}
 
-      {/* Chân: cập nhật lúc */}
+      {/* Chân: trạng thái realtime + cập nhật lúc */}
       {updatedAt && (
-        <div style={{ marginTop: 14, fontSize: 11, color: T.text3, textAlign: "right" }}>
-          Dữ liệu cập nhật: {updatedAt.toLocaleTimeString("vi-VN")} · {visibleBranches.length} ngành · {datesDesc.length} phiên
+        <div style={{ marginTop: 14, fontSize: 11, color: T.text3, textAlign: "right", display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 6 }}>
+          <span
+            style={{ display: "inline-block", width: 7, height: 7, borderRadius: "50%", background: live ? T.buy : T.text3 }}
+          />
+          <span style={{ color: live ? T.buy : T.text3, fontWeight: 600 }}>{live ? "Realtime" : "Định kỳ"}</span>
+          <span>· Dữ liệu cập nhật: {updatedAt.toLocaleTimeString("vi-VN")} · {visibleBranches.length} ngành · {datesDesc.length} phiên</span>
         </div>
       )}
     </div>
