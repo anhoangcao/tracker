@@ -7,36 +7,35 @@ let devLastFetched = 0;
 let stockWaveDevCache = null;
 let stockWaveDevLastFetched = 0;
 const CACHE_DURATION = 3 * 1000; // Realtime là đường chính; proxy chỉ phục vụ snapshot ban đầu + lưới dự phòng, giữ ngắn để tươi.
+const API_ACCOUNT = "thao.dtt";
+const STOCK_WAVE_REPLY_KEYS = ["StockWaveReply", "StockWaveRequest"];
 
 async function fetchStockWaveFromSource() {
-  const payloads = [
-    { StockWaveRequest: { name: "ALL", account: "uyen.png" } },
-    { StockWaveRequest: { name: "ALL" } },
-    { StockWaveRequest: {} },
-  ];
+  const payload = { StockWaveRequest: { account: API_ACCOUNT } };
 
-  let lastError = null;
-  for (const payload of payloads) {
-    try {
-      const response = await fetch("https://stocktraders.vn/service/data/getStockWave", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const response = await fetch("https://stocktraders.vn/service/data/getStockWave", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
-      const data = await response.json();
-      const code = data?.StockWaveRequest?.codeReply?.codeID;
-      const waveDatas = data?.StockWaveRequest?.stockWaves?.waveDatas;
-      if (code && code !== "S0000") throw new Error(`API response code ${code}`);
-      if (!Array.isArray(waveDatas)) throw new Error("API response missing waveDatas");
-      return data;
-    } catch (err) {
-      lastError = err;
+  const data = await response.json();
+  const reply = getStockWaveReply(data);
+  const code = reply?.codeReply?.codeID;
+  const waveDatas = reply?.stockWaves?.waveDatas;
+  if (code && code !== "S0000") throw new Error(`API response code ${code}`);
+  if (!Array.isArray(waveDatas)) throw new Error("API response missing waveDatas");
+  return data;
+}
+
+function getStockWaveReply(data) {
+  for (const key of STOCK_WAVE_REPLY_KEYS) {
+    if (data?.[key]) {
+      return data[key];
     }
   }
-
-  throw lastError || new Error("Failed to load stock wave data");
+  return null;
 }
 
 function smdtDevPlugin() {
@@ -61,7 +60,7 @@ function smdtDevPlugin() {
               const response = await fetch("https://stocktraders.vn/service/data/getSMDTBranch", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ SMDTBranchRequest: { account: "uyen.png" } })
+                body: JSON.stringify({ SMDTBranchRequest: { account: API_ACCOUNT } })
               });
               if (!response.ok) throw new Error(`HTTP ${response.status}`);
               const data = await response.json();
@@ -128,11 +127,13 @@ function smdtDevPlugin() {
           }
 
           try {
-            const stockWaves = stockWaveDevCache?.StockWaveRequest?.stockWaves || {};
+            const replyKey = STOCK_WAVE_REPLY_KEYS.find((key) => stockWaveDevCache?.[key]) || "StockWaveReply";
+            const stockWaveReply = getStockWaveReply(stockWaveDevCache) || {};
+            const stockWaves = stockWaveReply.stockWaves || {};
             const waveDatas = Array.isArray(stockWaves.waveDatas) ? stockWaves.waveDatas : [];
             const reply = {
-              StockWaveRequest: {
-                codeReply: stockWaveDevCache?.StockWaveRequest?.codeReply || { codeID: "S0000", codeName: "SUCSESS" },
+              [replyKey]: {
+                codeReply: stockWaveReply.codeReply || { codeID: "S0000", codeName: "SUCSESS" },
                 stockWaves: {
                   ...stockWaves,
                   waveDatas: waveDatas.slice(-limit)

@@ -1,51 +1,52 @@
 let serverCache = null;
 let lastFetched = 0;
 const CACHE_DURATION = 3 * 1000;
+const API_ACCOUNT = "thao.dtt";
+const STOCK_WAVE_REPLY_KEYS = ["StockWaveReply", "StockWaveRequest"];
 
 async function fetchStockWaveFromSource() {
-  const payloads = [
-    { StockWaveRequest: { name: "ALL", account: "uyen.png" } },
-    { StockWaveRequest: { name: "ALL" } },
-    { StockWaveRequest: {} },
-  ];
+  const payload = { StockWaveRequest: { account: API_ACCOUNT } };
 
-  let lastError = null;
-  for (const payload of payloads) {
-    try {
-      const response = await fetch("https://stocktraders.vn/service/data/getStockWave", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      if (!response.ok) {
-        throw new Error(`External API returned status ${response.status}`);
-      }
-
-      const data = await response.json();
-      const code = data?.StockWaveRequest?.codeReply?.codeID;
-      const waveDatas = data?.StockWaveRequest?.stockWaves?.waveDatas;
-      if (code && code !== "S0000") {
-        throw new Error(`API response code ${code}`);
-      }
-      if (!Array.isArray(waveDatas)) {
-        throw new Error("API response missing waveDatas");
-      }
-      return data;
-    } catch (error) {
-      lastError = error;
-    }
+  const response = await fetch("https://stocktraders.vn/service/data/getStockWave", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    throw new Error(`External API returned status ${response.status}`);
   }
 
-  throw lastError || new Error("Failed to load stock wave data");
+  const data = await response.json();
+  const reply = getStockWaveReply(data);
+  const code = reply?.codeReply?.codeID;
+  const waveDatas = reply?.stockWaves?.waveDatas;
+  if (code && code !== "S0000") {
+    throw new Error(`API response code ${code}`);
+  }
+  if (!Array.isArray(waveDatas)) {
+    throw new Error("API response missing waveDatas");
+  }
+  return data;
+}
+
+function getStockWaveReply(data) {
+  for (const key of STOCK_WAVE_REPLY_KEYS) {
+    if (data?.[key]) {
+      return data[key];
+    }
+  }
+  return null;
 }
 
 function sliceReply(data, limit) {
-  const stockWaves = data?.StockWaveRequest?.stockWaves || {};
+  const replyKey = STOCK_WAVE_REPLY_KEYS.find((key) => data?.[key]) || "StockWaveReply";
+  const sourceReply = getStockWaveReply(data) || {};
+  const stockWaves = sourceReply.stockWaves || {};
   const waveDatas = Array.isArray(stockWaves.waveDatas) ? stockWaves.waveDatas : [];
 
   return {
-    StockWaveRequest: {
-      codeReply: data?.StockWaveRequest?.codeReply || { codeID: "S0000", codeName: "SUCSESS" },
+    [replyKey]: {
+      codeReply: sourceReply.codeReply || { codeID: "S0000", codeName: "SUCSESS" },
       stockWaves: {
         ...stockWaves,
         waveDatas: waveDatas.slice(-limit),

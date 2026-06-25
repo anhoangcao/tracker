@@ -2,6 +2,7 @@
 let serverCache = null;
 let lastFetched = 0;
 const CACHE_DURATION = 3 * 1000; // Realtime là đường chính; proxy chỉ phục vụ snapshot ban đầu + lưới dự phòng, giữ ngắn để tươi.
+const API_ACCOUNT = "thao.dtt";
 
 export default async function handler(req, res) {
   // Enable CORS
@@ -26,7 +27,7 @@ export default async function handler(req, res) {
       const response = await fetch("https://stocktraders.vn/service/data/getSMDTBranch", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ SMDTBranchRequest: { account: "uyen.png" } })
+        body: JSON.stringify({ SMDTBranchRequest: { account: API_ACCOUNT } })
       });
       if (!response.ok) {
         throw new Error(`External API returned status ${response.status}`);

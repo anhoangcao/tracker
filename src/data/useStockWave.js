@@ -14,6 +14,7 @@ const DEFAULT_REFRESH_MS = 15_000;
 const CACHE_KEY = "stock_wave_data_cache";
 const MAX_ROWS = 150;
 const STOCK_WAVE_CHANNELS = ["smdt-stock"];
+const STOCK_WAVE_REPLY_KEYS = ["StockWaveReply", "StockWaveRequest"];
 
 let globalCache = null;
 
@@ -27,8 +28,17 @@ function toNumber(value, fallback = 0) {
   return Number.isFinite(n) ? n : fallback;
 }
 
+function getStockWaveReply(data) {
+  for (const key of STOCK_WAVE_REPLY_KEYS) {
+    if (data?.[key]) {
+      return data[key];
+    }
+  }
+  return null;
+}
+
 function normalize(reply) {
-  const stockWaves = reply?.StockWaveRequest?.stockWaves;
+  const stockWaves = getStockWaveReply(reply)?.stockWaves;
   const waveDatas = Array.isArray(stockWaves?.waveDatas) ? stockWaves.waveDatas : [];
 
   const rows = waveDatas
@@ -105,7 +115,7 @@ function extractRealtimeTicks(payload) {
   }
 
   const data = STOCK_WAVE_CHANNELS.includes(payload?.channel) && payload?.data ? payload.data : payload;
-  const stockWaves = data?.StockWaveRequest?.stockWaves ?? data?.stockWaves;
+  const stockWaves = getStockWaveReply(data)?.stockWaves ?? data?.stockWaves;
   const waveDatas = stockWaves?.waveDatas ?? data?.waveDatas;
 
   if (Array.isArray(waveDatas)) {
@@ -179,7 +189,7 @@ export function useStockWave() {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
         const json = await res.json();
-        const code = json?.StockWaveRequest?.codeReply?.codeID;
+        const code = getStockWaveReply(json)?.codeReply?.codeID;
         if (code && code !== "S0000") throw new Error(`API ${code}`);
 
         const normalized = overlayFreshTicks(normalize(json), realtimeTouchedRef.current, startedAt);
