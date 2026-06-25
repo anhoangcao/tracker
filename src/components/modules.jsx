@@ -3,6 +3,7 @@ import { useTheme } from "../theme";
 import { mono, valToHmCls } from "../styles/tokens";
 import { useSMDT, useRealtimeFeed } from "../data/useSMDT";
 import { useCashFlowBranch, useRealtimeCashFlowFeed, contentToSig } from "../data/useCashFlowBranch";
+import { useCashFlowTicker, useRealtimeCashFlowTickerFeed, tickerContentToSig } from "../data/useCashFlowTicker";
 import { useStockWave, useRealtimeStockWaveFeed } from "../data/useStockWave";
 import {
   Card, CardHeader, Clink, FilterChips, SearchBox, TableWrap, THead, Pagination,
@@ -43,12 +44,16 @@ export function ModuleView({ id }) {
 
 /* ─────────────────────────── HELPERS ─────────────────────────────────── */
 const fmtDay = (iso) => {
+  if (!iso || typeof iso !== "string") return "—";
+  if (iso.includes("/")) return iso.slice(0, 5);
   const [, m, d] = iso.split("-");
-  return `${d}/${m}`;
+  return d && m ? `${d}/${m}` : iso;
 };
 const fmtFull = (iso) => {
+  if (!iso || typeof iso !== "string") return "—";
+  if (iso.includes("/")) return iso;
   const [y, m, d] = iso.split("-");
-  return `${d}/${m}/${y}`;
+  return d && m && y ? `${d}/${m}/${y}` : iso;
 };
 const fmtNum = (v) => new Intl.NumberFormat("vi-VN").format(v || 0);
 const pct = (part, total) => (total ? (part / total) * 100 : 0);
@@ -555,6 +560,39 @@ function SMDTSearchPill({ value, onChange, placeholder }) {
   );
 }
 
+function InlineFilterChips({ options, active, onChange }) {
+  return (
+    <div style={{ display: "inline-flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>
+      {options.map((option) => {
+        const on = active === option.id;
+        return (
+          <button
+            key={option.id}
+            onClick={() => onChange(option.id)}
+            style={{
+              height: 32,
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              background: on ? "var(--Bs)" : "var(--surf)",
+              border: `0.5px solid ${on ? "var(--Bb)" : "var(--bdr)"}`,
+              borderRadius: 20,
+              padding: "0 13px",
+              fontSize: 12,
+              fontWeight: on ? 700 : 500,
+              color: on ? "var(--B)" : "var(--t2)",
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 /* ═══════════════════════════ DASHBOARD ═══════════════════════════════════ */
 function ModDashboard() {
   const { t } = useTheme();
@@ -767,33 +805,155 @@ const DT_CP_ROWS = [
 function ModDongTienCP() {
   const { t } = useTheme();
   const narrow = useNarrow();
-  const td = { padding: "9px 10px", borderBottom: "0.5px solid var(--bdrs)", whiteSpace: "nowrap" };
+  const { latest, buckets, status, error, updatedAt, refresh, applyTick } = useCashFlowTicker();
+  const { connected: live } = useRealtimeCashFlowTickerFeed(applyTick);
+  const [filter, setFilter] = useState("all");
+  const [query, setQuery] = useState("");
+
+  const rows = latest?.rows || [];
+  const counts = rows.reduce(
+    (acc, row) => {
+      acc.total += 1;
+      acc[row.content] = (acc[row.content] || 0) + 1;
+      return acc;
+    },
+    { total: 0 }
+  );
+
+  const filteredRows = rows
+    .filter((row) => (filter === "all" ? true : tickerContentToSig(row.content) === filter))
+    .filter((row) => (query.trim() ? row.ticker.toLowerCase().includes(query.trim().toLowerCase()) : true));
+
+  const visibleTickers = filteredRows.map((row) => row.ticker);
+  const datesDesc = [...buckets].reverse();
+  const matrix = useMemo(() => {
+    const map = {};
+    for (const bucket of buckets) {
+      map[bucket.date] = {};
+      for (const row of bucket.rows) {
+        map[bucket.date][row.ticker] = row.content;
+      }
+    }
+    return map;
+  }, [buckets]);
+
+  if (status === "loading" && !rows.length) return <Banner>Đang tải dữ liệu dòng tiền cổ phiếu…</Banner>;
+  if (status === "error" && !rows.length)
+    return <Banner tone="error">Lỗi tải dữ liệu: {error} <button onClick={refresh} style={linkBtn}>Thử lại</button></Banner>;
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <div style={{ display: "grid", gridTemplateColumns: narrow ? "1fr 1fr" : "repeat(4,1fr)", gap: 10 }}>
-        <StatCard label="Tiếp tục đổ vào" val="47" sub="Dòng tiền mạnh liên tục" colorKey="G" />
-        <StatCard label="Nhen nhóm đổ vào" val="23" sub="Mới bắt đầu nhận tiền" colorKey="B" />
-        <StatCard label="Đang thoát ra" val="31" sub="Dòng tiền bắt đầu rút" colorKey="A" />
-        <StatCard label="Tiếp tục thoát ra" val="25" sub="Dòng tiền rút liên tục" colorKey="R" />
+        <StatCard label="Tiếp tục đổ vào" val={fmtNum(counts["Tiếp tục đổ vào"] || 0)} sub="Từ API getCashFlowTicker" colorKey="G" />
+        <StatCard label="Nhen nhóm đổ vào" val={fmtNum(counts["Nhen nhóm đổ vào"] || 0)} sub={latest ? `Phiên ${latest.date}` : ""} colorKey="B" />
+        <StatCard label="Đang thoát ra" val={fmtNum(counts["Đang thoát ra"] || 0)} sub={`${fmtNum(counts.total)} mã`} colorKey="A" />
+        <StatCard label="Tiếp tục thoát ra" val={fmtNum(counts["Tiếp tục thoát ra"] || 0)} sub={`${fmtNum(buckets.length)} phiên`} colorKey="R" />
       </div>
-      <MockNote>Bảng mẫu — chờ kết nối API dòng tiền cổ phiếu.</MockNote>
+
+      <div style={{ display: "flex", alignItems: "center", gap: 13, flexWrap: "wrap" }}>
+        <InlineFilterChips
+          options={[
+            { id: "all", label: `Tất cả ${counts.total || ""}`.trim() },
+            { id: "si", label: "Tiếp tục đổ vào" },
+            { id: "sn", label: "Nhen nhóm" },
+            { id: "so", label: "Đang thoát ra" },
+            { id: "st", label: "Tiếp tục thoát" },
+          ]}
+          active={filter}
+          onChange={setFilter}
+        />
+        <SearchBox placeholder="Tìm mã..." value={query} onChange={(e) => setQuery(e.target.value)} />
+      </div>
+
       <Card noPad>
-        <TableWrap minWidth={760}>
-          <THead cols={[{ label: "Mã", pl: 14 }, { label: "Ngành" }, { label: "SMDT (%)", right: true }, { label: "07/05" }, { label: "06/05" }, { label: "05/05" }, { label: "02/05" }, { label: "Xu hướng" }]} />
-          <tbody>
-            {DT_CP_ROWS.map((r) => (
-              <tr key={r.ma}>
-                <td style={{ ...td, fontWeight: 700, color: t.B, fontSize: 13, paddingLeft: 14 }}>{r.ma}</td>
-                <td style={{ ...td, fontSize: 11, color: "var(--t3)" }}>{r.ng}</td>
-                <td style={{ ...td, textAlign: "right", padding: "6px 10px" }}><HM cls={r.smdt[0]} val={r.smdt[1]} /></td>
-                {r.sigs.map((s, i) => <td key={i} style={{ ...td, textAlign: "center", padding: "6px 8px" }}><Sig type={s} compact /></td>)}
-                <td style={td}><Tag cls={r.trend[0]}>{r.trend[1]}</Tag></td>
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, minWidth: Math.max(760, 150 + visibleTickers.length * 132) }}>
+            <thead>
+              <tr>
+                <th style={{ ...cashFlowMatrixTh, position: "sticky", left: 0, zIndex: 3, width: 150, textAlign: "left" }}>DATE ↓</th>
+                {visibleTickers.map((ticker) => (
+                  <th key={ticker} style={cashFlowMatrixTh}>{ticker}</th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </TableWrap>
+            </thead>
+            <tbody>
+              {datesDesc.map((bucket) => (
+                <tr key={bucket.date}>
+                  <td style={{ ...cashFlowMatrixDateTd, position: "sticky", left: 0, zIndex: 2 }}>{fmtDay(bucket.date)}</td>
+                  {visibleTickers.map((ticker) => (
+                    <td key={ticker} style={cashFlowMatrixTd}>
+                      <CashFlowTickerCell content={matrix[bucket.date]?.[ticker]} />
+                    </td>
+                  ))}
+                </tr>
+              ))}
+              {visibleTickers.length === 0 && (
+                <tr><td colSpan={2} style={{ padding: 28, textAlign: "center", color: "var(--t3)" }}>Không có mã phù hợp.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </Card>
+      <LiveFooter live={live} updatedAt={updatedAt} extra={`${fmtNum(filteredRows.length)} / ${fmtNum(rows.length)} mã · channel money-flow-stock`} />
     </div>
+  );
+}
+
+const cashFlowMatrixTh = {
+  fontSize: 12,
+  fontWeight: 800,
+  color: "var(--t1)",
+  textTransform: "uppercase",
+  letterSpacing: ".02em",
+  padding: "16px 22px",
+  borderBottom: "0.5px solid var(--bdr)",
+  borderRight: "0.5px solid var(--bdrs)",
+  background: "var(--elev)",
+  textAlign: "center",
+  whiteSpace: "nowrap",
+};
+
+const cashFlowMatrixDateTd = {
+  padding: "16px 22px",
+  fontSize: 13,
+  fontWeight: 800,
+  color: "var(--t1)",
+  borderBottom: "0.5px solid var(--bdrs)",
+  borderRight: "0.5px solid var(--bdrs)",
+  background: "var(--surf)",
+  whiteSpace: "nowrap",
+};
+
+const cashFlowMatrixTd = {
+  padding: "12px 16px",
+  textAlign: "center",
+  borderBottom: "0.5px solid var(--bdrs)",
+  borderRight: "0.5px solid var(--bdrs)",
+  background: "var(--surf)",
+};
+
+function CashFlowTickerCell({ content }) {
+  const sig = tickerContentToSig(content);
+  const styles = {
+    si: { label: "Tiếp tục vào", bg: "rgba(61,214,140,.18)", color: "#3DD68C" },
+    sn: { label: "Nhen nhóm vào", bg: "rgba(190,242,100,.18)", color: "#84CC16" },
+    so: { label: "Đang thoát ra", bg: "rgba(255,159,10,.16)", color: "#FF9F0A" },
+    st: { label: "Tiếp tục thoát", bg: "rgba(255,45,85,.14)", color: "#FF2D55" },
+  };
+  const s = styles[sig];
+
+  if (!s) {
+    return (
+      <span style={{ display: "inline-flex", minWidth: 86, height: 22, alignItems: "center", justifyContent: "center", borderRadius: 6, background: "rgba(92,112,144,.12)", color: "var(--t3)", fontSize: 12, fontWeight: 700 }}>
+        -
+      </span>
+    );
+  }
+
+  return (
+    <span style={{ display: "inline-flex", minWidth: 104, height: 24, alignItems: "center", justifyContent: "center", borderRadius: 6, background: s.bg, color: s.color, fontSize: 12, fontWeight: 800, whiteSpace: "nowrap" }}>
+      {s.label}
+    </span>
   );
 }
 

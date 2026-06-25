@@ -8,9 +8,12 @@ let stockWaveDevCache = null;
 let stockWaveDevLastFetched = 0;
 let cashFlowDevCache = null;
 let cashFlowDevLastFetched = 0;
+let cashFlowTickerDevCache = null;
+let cashFlowTickerDevLastFetched = 0;
 const CACHE_DURATION = 3 * 1000; // Realtime là đường chính; proxy chỉ phục vụ snapshot ban đầu + lưới dự phòng, giữ ngắn để tươi.
 const API_ACCOUNT = "thao.dtt";
 const STOCK_WAVE_REPLY_KEYS = ["StockWaveReply", "StockWaveRequest"];
+const CASH_FLOW_TICKER_REPLY_KEYS = ["CashFlowTickerReply", "CashFlowTickerRequest"];
 
 async function fetchStockWaveFromSource() {
   const payload = { StockWaveRequest: { account: API_ACCOUNT } };
@@ -33,6 +36,15 @@ async function fetchStockWaveFromSource() {
 
 function getStockWaveReply(data) {
   for (const key of STOCK_WAVE_REPLY_KEYS) {
+    if (data?.[key]) {
+      return data[key];
+    }
+  }
+  return null;
+}
+
+function getCashFlowTickerReply(data) {
+  for (const key of CASH_FLOW_TICKER_REPLY_KEYS) {
     if (data?.[key]) {
       return data[key];
     }
@@ -194,6 +206,61 @@ function smdtDevPlugin() {
               CashFlowBranchReply: {
                 codeReply: reply.codeReply || { codeID: "S0000", codeName: "SUCSESS" },
                 cashFlowBranchs: slicedBuckets
+              }
+            };
+
+            res.statusCode = 200;
+            res.setHeader("Content-Type", "application/json");
+            res.setHeader("Cache-Control", "no-store, max-age=0");
+            res.end(JSON.stringify(out));
+          } catch (err) {
+            res.statusCode = 500;
+            res.setHeader("Content-Type", "application/json");
+            res.end(JSON.stringify({ error: err.message }));
+          }
+        } else if (reqUrl.startsWith("/api/cashflow-ticker")) {
+          const host = req.headers.host || "localhost:3000";
+          const parsedUrl = new URL(reqUrl, `http://${host}`);
+          const limitParam = parsedUrl.searchParams.get("limit");
+          let limit = parseInt(limitParam || "150", 10);
+          if (isNaN(limit) || limit <= 0) {
+            limit = 150;
+          }
+
+          const now = Date.now();
+          if (!cashFlowTickerDevCache || (now - cashFlowTickerDevLastFetched > CACHE_DURATION)) {
+            try {
+              const response = await fetch("https://stocktraders.vn/service/data/getCashFlowTicker", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ CashFlowTickerRequest: { account: API_ACCOUNT } })
+              });
+              if (!response.ok) throw new Error(`HTTP ${response.status}`);
+              const data = await response.json();
+              const reply = getCashFlowTickerReply(data);
+              const code = reply?.codeReply?.codeID;
+              if (code && code !== "S0000") throw new Error(`API response code ${code}`);
+              cashFlowTickerDevCache = data;
+              cashFlowTickerDevLastFetched = now;
+            } catch (err) {
+              console.error("Local dev cash flow ticker proxy fetch error:", err);
+              if (!cashFlowTickerDevCache) {
+                res.statusCode = 502;
+                res.setHeader("Content-Type", "application/json");
+                res.end(JSON.stringify({ error: err.message }));
+                return;
+              }
+            }
+          }
+
+          try {
+            const replyKey = CASH_FLOW_TICKER_REPLY_KEYS.find((key) => cashFlowTickerDevCache?.[key]) || "CashFlowTickerReply";
+            const reply = getCashFlowTickerReply(cashFlowTickerDevCache) || {};
+            const buckets = Array.isArray(reply.cashFlowTickers) ? reply.cashFlowTickers : [];
+            const out = {
+              [replyKey]: {
+                codeReply: reply.codeReply || { codeID: "S0000", codeName: "SUCSESS" },
+                cashFlowTickers: buckets.slice(-limit)
               }
             };
 
