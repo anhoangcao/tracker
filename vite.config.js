@@ -6,6 +6,8 @@ let devCache = null;
 let devLastFetched = 0;
 let stockWaveDevCache = null;
 let stockWaveDevLastFetched = 0;
+let cashFlowDevCache = null;
+let cashFlowDevLastFetched = 0;
 const CACHE_DURATION = 3 * 1000; // Realtime là đường chính; proxy chỉ phục vụ snapshot ban đầu + lưới dự phòng, giữ ngắn để tươi.
 const API_ACCOUNT = "thao.dtt";
 const STOCK_WAVE_REPLY_KEYS = ["StockWaveReply", "StockWaveRequest"];
@@ -145,6 +147,60 @@ function smdtDevPlugin() {
             res.setHeader("Content-Type", "application/json");
             res.setHeader("Cache-Control", "no-store, max-age=0");
             res.end(JSON.stringify(reply));
+          } catch (err) {
+            res.statusCode = 500;
+            res.setHeader("Content-Type", "application/json");
+            res.end(JSON.stringify({ error: err.message }));
+          }
+        } else if (reqUrl.startsWith("/api/cashflow-branch")) {
+          const host = req.headers.host || "localhost:3000";
+          const parsedUrl = new URL(reqUrl, `http://${host}`);
+          const limitParam = parsedUrl.searchParams.get("limit");
+          let limit = parseInt(limitParam || "150", 10);
+          if (isNaN(limit) || limit <= 0) {
+            limit = 150;
+          }
+
+          const now = Date.now();
+          if (!cashFlowDevCache || (now - cashFlowDevLastFetched > CACHE_DURATION)) {
+            try {
+              const response = await fetch("https://stocktraders.vn/service/data/getCashFlowBranch", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ CashFlowBranchRequest: { account: API_ACCOUNT } })
+              });
+              if (!response.ok) throw new Error(`HTTP ${response.status}`);
+              const data = await response.json();
+              cashFlowDevCache = data;
+              cashFlowDevLastFetched = now;
+            } catch (err) {
+              console.error("Local dev cash flow proxy fetch error:", err);
+              if (!cashFlowDevCache) {
+                res.statusCode = 502;
+                res.setHeader("Content-Type", "application/json");
+                res.end(JSON.stringify({ error: err.message }));
+                return;
+              }
+            }
+          }
+
+          try {
+            const reply = cashFlowDevCache?.CashFlowBranchReply || {};
+            const originalBuckets = Array.isArray(reply.cashFlowBranchs) ? reply.cashFlowBranchs : [];
+            // Mỗi bucket là 1 phiên (ngày); slice giữ `limit` phiên gần nhất.
+            const slicedBuckets = originalBuckets.slice(-limit);
+
+            const out = {
+              CashFlowBranchReply: {
+                codeReply: reply.codeReply || { codeID: "S0000", codeName: "SUCSESS" },
+                cashFlowBranchs: slicedBuckets
+              }
+            };
+
+            res.statusCode = 200;
+            res.setHeader("Content-Type", "application/json");
+            res.setHeader("Cache-Control", "no-store, max-age=0");
+            res.end(JSON.stringify(out));
           } catch (err) {
             res.statusCode = 500;
             res.setHeader("Content-Type", "application/json");

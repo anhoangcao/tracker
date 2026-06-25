@@ -1,135 +1,88 @@
-import { T, mono } from "../styles/tokens";
+import { useEffect, useState } from "react";
+import { useTheme } from "../theme";
+import { mono } from "../styles/tokens";
 import { INDICES } from "../data/dashboardData";
-import { Icon } from "./Icon";
 
-/* ─────────────────────────── TOPBAR ────────────────────────────────── */
-export const Topbar = ({ isMobile, onMenuToggle }) => (
-  <header
-    style={{
-      height: 54,
-      flexShrink: 0,
-      background: T.surface,
-      borderBottom: `1px solid ${T.border}`,
-      display: "flex",
-      alignItems: "center",
-      padding: "0 20px",
-      gap: 14,
-      position: "sticky",
-      top: 0,
-      zIndex: 20,
-    }}
-  >
-    {isMobile && (
-      <button
-        onClick={onMenuToggle}
-        style={{ background: "none", border: "none", color: T.text2, cursor: "pointer", padding: 4 }}
-      >
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-          <line x1="3" y1="6" x2="21" y2="6" />
-          <line x1="3" y1="12" x2="21" y2="12" />
-          <line x1="3" y1="18" x2="21" y2="18" />
-        </svg>
-      </button>
-    )}
-    {isMobile && (
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <div
-          style={{
-            width: 26,
-            height: 26,
-            borderRadius: 6,
-            background: "linear-gradient(135deg,#7C3AED,#A78BFA)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="1,12 5,8 9,10 15,4" />
-            <polyline points="11,4 15,4 15,8" />
-          </svg>
-        </div>
-        <span style={{ fontSize: 14, fontWeight: 600 }}>StockTraders AI</span>
-      </div>
-    )}
-    {!isMobile && (
-      <div>
-        <div style={{ fontSize: 15, fontWeight: 600 }}>Dashboard</div>
-        <div style={{ fontSize: 11, color: T.text3 }}>Tổng quan thị trường</div>
-      </div>
-    )}
+/* ─────────────────────────── TOPBAR ────────────────────────────────────
+ * Tiêu đề module + chỉ số thị trường + đồng hồ realtime + nút đổi theme.
+ * ─────────────────────────────────────────────────────────────────────── */
+function useClock() {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  return now;
+}
 
-    {/* Indices */}
-    <div style={{ display: "flex", gap: isMobile ? 12 : 22, marginLeft: "auto", overflowX: "auto" }}>
-      {INDICES.map((idx, i) => (
-        <div key={i} style={{ textAlign: "right", flexShrink: 0 }}>
-          <div style={{ fontSize: 10, color: T.text3, letterSpacing: ".05em" }}>{idx.name}</div>
-          <div style={{ ...mono, fontSize: 13 }}>{idx.val}</div>
-          <div style={{ fontSize: 11, color: T.buy }}>{idx.pct}</div>
-        </div>
-      ))}
-    </div>
+export function Topbar({ mod, isMobile, onMenuToggle }) {
+  const { t, dark, toggle } = useTheme();
+  const now = useClock();
+  const stamp = `${now.toLocaleDateString("vi-VN")} · ${now.toLocaleTimeString("vi-VN")}`;
 
-    {/* User */}
-    <div
+  return (
+    <header
       style={{
+        gridColumn: isMobile ? undefined : 2,
+        height: 52,
+        flexShrink: 0,
+        background: "var(--surf)",
+        borderBottom: "0.5px solid var(--bdr)",
         display: "flex",
         alignItems: "center",
-        gap: 10,
-        paddingLeft: 18,
-        borderLeft: `1px solid ${T.border}`,
-        flexShrink: 0,
+        justifyContent: "space-between",
+        padding: isMobile ? "0 13px" : "0 20px",
+        gap: 14,
+        transition: "background .2s",
       }}
     >
-      <div style={{ position: "relative" }}>
-        <Icon name="bell" size={18} color={T.text2} />
-        <span
-          style={{
-            position: "absolute",
-            top: -2,
-            right: -2,
-            width: 7,
-            height: 7,
-            borderRadius: "50%",
-            background: T.sell,
-            border: `1.5px solid ${T.surface}`,
-          }}
-        />
-      </div>
-      <div
-        style={{
-          width: 32,
-          height: 32,
-          borderRadius: "50%",
-          background: "rgba(124,58,237,.2)",
-          border: "1.5px solid rgba(167,139,250,.4)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontSize: 11,
-          fontWeight: 600,
-          color: T.accent,
-        }}
-      >
-        NA
-      </div>
-      {!isMobile && (
-        <div>
-          <div style={{ fontSize: 13, fontWeight: 500 }}>Nguyễn Văn A</div>
-          <div
-            style={{
-              fontSize: 10,
-              padding: "1px 7px",
-              background: "rgba(240,160,69,.15)",
-              color: T.warn,
-              borderRadius: 10,
-              fontWeight: 500,
-            }}
-          >
-            Premium
-          </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 16, minWidth: 0 }}>
+        {isMobile && (
+          <button onClick={onMenuToggle} aria-label="Mở menu" style={iconBtn}>
+            <i className="ti ti-menu-2" style={{ fontSize: 18 }} />
+          </button>
+        )}
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 15, fontWeight: 800, color: "var(--t1)", letterSpacing: "-.2px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{mod?.title}</div>
+          {!isMobile && <div style={{ fontSize: 11, color: "var(--t3)", marginTop: 1 }}>{mod?.sub}</div>}
         </div>
-      )}
-    </div>
-  </header>
-);
+        {!isMobile && (
+          <div style={{ display: "flex", gap: 7 }}>
+            {INDICES.map((idx) => (
+              <div key={idx.name} style={{ display: "flex", alignItems: "baseline", gap: 4, background: "var(--elev)", border: "0.5px solid var(--bdr)", borderRadius: 7, padding: "5px 10px" }}>
+                <span style={{ fontSize: 10, color: "var(--t3)", fontWeight: 600, textTransform: "uppercase", letterSpacing: ".04em" }}>{idx.name}</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: "var(--t1)", ...mono }}>{idx.val}</span>
+                <span style={{ fontSize: 10, color: t.G, fontWeight: 600 }}>{idx.pct}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+        {!isMobile && (
+          <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "var(--t3)" }}>
+            <span style={{ width: 6, height: 6, borderRadius: "50%", background: t.G, display: "inline-block", animation: "pulse 2s infinite" }} />
+            {stamp}
+          </div>
+        )}
+        {!isMobile && [["ti-calendar", false], ["ti-bell", true], ["ti-help", false]].map(([ic, badge], i) => (
+          <div key={i} style={{ ...iconBtn, position: "relative" }}>
+            <i className={`ti ${ic}`} style={{ fontSize: 15 }} />
+            {badge && <span style={{ position: "absolute", top: 4, right: 4, width: 6, height: 6, background: t.R, borderRadius: "50%", border: "1.5px solid var(--surf)" }} />}
+          </div>
+        ))}
+        <div onClick={toggle} title="Đổi Sáng/Tối" style={iconBtn}>
+          <i className={`ti ${dark ? "ti-sun" : "ti-moon"}`} style={{ fontSize: 15 }} />
+        </div>
+        <div style={{ width: 32, height: 32, borderRadius: "50%", background: t.Bs, border: `0.5px solid ${t.Bb}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: t.B, flexShrink: 0 }}>NA</div>
+        {!isMobile && <div style={{ fontSize: 9, background: t.P, color: "#fff", borderRadius: 4, padding: "2px 6px", fontWeight: 700 }}>PREMIUM</div>}
+      </div>
+    </header>
+  );
+}
+
+const iconBtn = {
+  width: 32, height: 32, borderRadius: 8, background: "var(--elev)", border: "0.5px solid var(--bdr)",
+  display: "flex", alignItems: "center", justifyContent: "center", color: "var(--t3)", cursor: "pointer", flexShrink: 0,
+};

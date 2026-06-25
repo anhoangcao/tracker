@@ -1,62 +1,37 @@
-import { useState } from "react";
-import { T } from "../styles/tokens";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Sidebar } from "../components/Sidebar";
 import { Topbar } from "../components/Topbar";
-import { MarketBanner } from "../components/sections/MarketBanner";
-import { MoneyFlow } from "../components/sections/MoneyFlow";
-import { InvestorProfile } from "../components/sections/InvestorProfile";
-import { Portfolio } from "../components/sections/Portfolio";
-import { SectorFlowList, SectorStrengthList, StockFlowList, StockStrengthList } from "../components/sections/TopLists";
-import { AIAdvisor } from "../components/sections/AIAdvisor";
-import SMDTNganh from "../components/sections/SMDTNganh";
-import StockWave from "../components/sections/StockWave";
+import { MODULES, ModuleView } from "../components/modules";
 
-/* ─────────────────────────── DESKTOP LAYOUT ────────────────────────── */
-export const DesktopDashboard = () => {
-  const [navActive, setNavActive] = useState("Dashboard");
+/* ─────────────────────────── DESKTOP LAYOUT ──────────────────────────── */
+export function DesktopDashboard() {
+  const [curMod, setCurMod] = useState("dashboard");
+  const mainRef = useRef(null);
+
+  const sw = useCallback((id) => {
+    if (!MODULES[id]) return;
+    setCurMod(id);
+    setTimeout(() => mainRef.current?.scrollTo({ top: 0, behavior: "instant" }), 0);
+  }, []);
+
+  // Cho phép các Clink "Chi tiết →" trong module điều hướng.
+  useEffect(() => {
+    const handler = (e) => sw(e.detail);
+    window.addEventListener("st-nav", handler);
+    return () => window.removeEventListener("st-nav", handler);
+  }, [sw]);
+
+  const mod = MODULES[curMod];
+
   return (
-    <div style={{ display: "flex", minHeight: "100vh" }}>
-      <Sidebar active={navActive} onNav={setNavActive} />
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
-        <Topbar isMobile={false} />
-        <main
-          style={{
-            flex: 1,
-            padding: "18px 22px",
-            display: "flex",
-            flexDirection: "column",
-            gap: 14,
-            overflowY: "auto",
-          }}
-        >
-          {navActive === "SMDT ngành" ? (
-            <SMDTNganh />
-          ) : navActive === "Sóng cổ phiếu" ? (
-            <StockWave />
-          ) : (
-            <>
-              <MarketBanner />
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }}>
-                <MoneyFlow />
-                <InvestorProfile />
-                <Portfolio />
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-                <SectorFlowList />
-                <SectorStrengthList />
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-                <StockFlowList />
-                <StockStrengthList />
-              </div>
-              <AIAdvisor />
-              <div style={{ textAlign: "center", fontSize: 11, color: T.text3, padding: "4px 0 8px" }}>
-                Dữ liệu chỉ mang tính tham khảo, không phải lời khuyên đầu tư.
-              </div>
-            </>
-          )}
-        </main>
-      </div>
+    <div style={{ display: "grid", gridTemplateColumns: "224px 1fr", gridTemplateRows: "52px 1fr", height: "100vh", background: "var(--bg)", color: "var(--t1)" }}>
+      <Sidebar curMod={curMod} onNav={sw} />
+      <Topbar mod={mod} />
+      <main ref={mainRef} style={{ gridColumn: 2, overflowY: "auto", overflowX: "hidden", background: "var(--bg)", scrollbarWidth: "thin" }}>
+        <div style={{ padding: "18px 22px 32px" }}>
+          <ModuleView id={curMod} />
+        </div>
+      </main>
     </div>
   );
-};
+}

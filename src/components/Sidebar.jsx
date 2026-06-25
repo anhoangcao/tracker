@@ -1,141 +1,116 @@
-import { T } from "../styles/tokens";
-import { NAV_ITEMS } from "../data/dashboardData";
-import { Icon } from "./Icon";
+import { useEffect, useState } from "react";
+import { useTheme } from "../theme";
 
-/* ─────────────────────────── SIDEBAR ───────────────────────────────── */
-export const Sidebar = ({ active, onNav }) => {
-  const sections = [...new Set(NAV_ITEMS.map((n) => n.section))];
+/* ─────────────────────────── SIDEBAR ───────────────────────────────────
+ * Điều hướng chính. `curMod` = id module đang xem, `onNav(id)` để chuyển.
+ * Hai nhóm "Ngành" / "Cổ phiếu" dạng accordion, tự mở khi item con active.
+ * ─────────────────────────────────────────────────────────────────────── */
+const NGANH_IDS = ["dong-tien-nganh", "smdt-nganh"];
+const CP_IDS = ["dong-tien-cp", "smdt-ma", "top-manh", "stock-wave", "do-song"];
+
+export function Sidebar({ curMod, onNav, compact }) {
+  const { t } = useTheme();
+  const [nganhOpen, setNganhOpen] = useState(false);
+  const [cpOpen, setCpOpen] = useState(false);
+
+  useEffect(() => {
+    if (NGANH_IDS.includes(curMod)) setNganhOpen(true);
+    if (CP_IDS.includes(curMod)) setCpOpen(true);
+  }, [curMod]);
+
+  const item = (id, icon, label, { onClick, isParent, isOpen, subIds } = {}) => {
+    const active = subIds ? subIds.includes(curMod) : curMod === id;
+    return (
+      <div
+        onClick={onClick || (id ? () => onNav(id) : undefined)}
+        style={{
+          display: "flex", alignItems: "center", gap: 13, padding: "13px 16px", cursor: "pointer",
+          color: active ? t.B : "var(--t2)", background: active ? t.Bs : "transparent",
+          borderLeft: `3px solid ${active ? t.B : "transparent"}`,
+          fontSize: 14, fontWeight: active ? 600 : 500, transition: "all .12s", userSelect: "none",
+        }}
+      >
+        <span style={{ flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{label}</span>
+        {isParent && (
+          <i className="ti ti-chevron-right" style={{ fontSize: 13, color: "var(--t4)", flexShrink: 0, transform: isOpen ? "rotate(90deg)" : "rotate(0)", transition: "transform .2s" }} />
+        )}
+      </div>
+    );
+  };
+
+  const sub = (id, icon, label) => {
+    const active = curMod === id;
+    return (
+      <div
+        key={id}
+        onClick={() => onNav(id)}
+        style={{
+          display: "flex", alignItems: "center", gap: 10, padding: "9px 16px 9px 32px", cursor: "pointer",
+          color: active ? t.B : "var(--t3)", background: active ? t.Bs : "transparent",
+          borderLeft: `3px solid ${active ? t.B : "transparent"}`,
+          fontSize: 13, fontWeight: active ? 600 : 400, transition: "all .12s",
+        }}
+      >
+        {label}
+      </div>
+    );
+  };
+
   return (
     <aside
       style={{
-        width: 220,
-        flexShrink: 0,
-        background: T.surface,
-        borderRight: `1px solid ${T.border}`,
+        gridRow: compact ? undefined : "1/3",
+        height: compact ? "100%" : undefined,
+        background: "var(--surf)",
+        borderRight: "0.5px solid var(--bdr)",
         display: "flex",
         flexDirection: "column",
-        height: "100vh",
-        position: "sticky",
-        top: 0,
+        overflowY: "auto",
+        overflowX: "hidden",
+        transition: "background .2s",
       }}
     >
       {/* Logo */}
-      <div style={{ padding: "18px 18px 14px", borderBottom: `1px solid ${T.border}` }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-          <div
-            style={{
-              width: 30,
-              height: 30,
-              borderRadius: 7,
-              background: "linear-gradient(135deg,#7C3AED,#A78BFA)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              flexShrink: 0,
-            }}
-          >
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="white"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <polyline points="1,12 5,8 9,10 15,4" />
-              <polyline points="11,4 15,4 15,8" />
-            </svg>
-          </div>
-          <span style={{ fontSize: 14, fontWeight: 600 }}>StockTraders AI</span>
+      <div style={{ height: 52, display: "flex", alignItems: "center", padding: "0 16px", gap: 10, borderBottom: "0.5px solid var(--bdr)", flexShrink: 0 }}>
+        <div style={{ width: 30, height: 30, borderRadius: 8, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "linear-gradient(135deg,#7C3AED,#4F46E5)" }}>
+          <i className="ti ti-chart-candle" style={{ color: "#fff", fontSize: 16 }} />
         </div>
-        <div style={{ fontSize: 11, color: T.text3, marginTop: 4 }}>AI đồng hành – Dòng tiền dẫn lối</div>
+        <span style={{ fontSize: 14, fontWeight: 700, color: "var(--t1)", letterSpacing: "-.2px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+          StockTraders AI
+        </span>
       </div>
 
-      {/* Nav */}
-      <nav
-        style={{
-          flex: 1,
-          padding: "10px 8px",
-          overflowY: "auto",
-          display: "flex",
-          flexDirection: "column",
-          gap: 2,
-        }}
-      >
-        {sections.map((sec) => (
-          <div key={sec}>
-            <div
-              style={{
-                fontSize: 10,
-                letterSpacing: ".08em",
-                color: T.text3,
-                padding: "8px 10px 4px",
-                textTransform: "uppercase",
-              }}
-            >
-              {sec}
-            </div>
-            {NAV_ITEMS.filter((n) => n.section === sec).map((n) => (
-              <div
-                key={n.label}
-                onClick={() => onNav(n.label)}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 9,
-                  padding: "8px 10px",
-                  borderRadius: 6,
-                  color: active === n.label ? T.accent : T.text2,
-                  background: active === n.label ? "rgba(167,139,250,.14)" : "transparent",
-                  cursor: "pointer",
-                  fontSize: 13,
-                  transition: "background .15s",
-                }}
-              >
-                <Icon name={n.icon} size={15} color={active === n.label ? T.accent : T.text2} strokeWidth={1.6} />
-                {n.label}
-              </div>
-            ))}
-          </div>
-        ))}
-      </nav>
+      {item("dashboard", "ti-layout-grid", "Dashboard")}
+      {item("dong-tien-tt", "ti-chart-line", "Thị trường")}
 
-      {/* Upgrade */}
-      <div style={{ padding: 12, borderTop: `1px solid ${T.border}` }}>
-        <div
-          style={{
-            background: "linear-gradient(135deg,rgba(124,58,237,.2),rgba(167,139,250,.1))",
-            border: "1px solid rgba(167,139,250,.25)",
-            borderRadius: 10,
-            padding: "12px 13px",
-            textAlign: "center",
-          }}
-        >
-          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>👑 Nâng cấp Premium</div>
-          <div style={{ fontSize: 11, color: T.text2, marginBottom: 10, lineHeight: 1.4 }}>
-            Tín hiệu real-time, AI phân tích sâu và hơn thế
-          </div>
-          <button
-            style={{
-              display: "block",
-              width: "100%",
-              background: "linear-gradient(135deg,#7C3AED,#A78BFA)",
-              color: "#fff",
-              border: "none",
-              borderRadius: 6,
-              padding: "7px",
-              fontSize: 12,
-              fontWeight: 600,
-              cursor: "pointer",
-              fontFamily: "Inter,sans-serif",
-            }}
-          >
-            Nâng cấp ngay
+      {item(null, "ti-briefcase", "Ngành", { onClick: () => setNganhOpen((o) => !o), isParent: true, isOpen: nganhOpen, subIds: NGANH_IDS })}
+      <div style={{ maxHeight: nganhOpen ? 200 : 0, overflow: "hidden", transition: "max-height .25s ease" }}>
+        {sub("dong-tien-nganh", "ti-trending-up", "Dòng tiền ngành")}
+        {sub("smdt-nganh", "ti-table", "SMDT ngành")}
+      </div>
+
+      {item(null, "ti-building-store", "Cổ phiếu", { onClick: () => setCpOpen((o) => !o), isParent: true, isOpen: cpOpen, subIds: CP_IDS })}
+      <div style={{ maxHeight: cpOpen ? 200 : 0, overflow: "hidden", transition: "max-height .25s ease" }}>
+        {sub("dong-tien-cp", "ti-trending-up", "Dòng tiền cổ phiếu")}
+        {sub("smdt-ma", "ti-table-column", "SMDT mã")}
+        {sub("top-manh", "ti-star", "Top cổ phiếu mạnh")}
+        {sub("stock-wave", "ti-wave-sine", "Sóng cổ phiếu")}
+      </div>
+
+      {item(null, "ti-chart-bar", "Báo cáo")}
+      {item(null, "ti-book", "Kiến thức")}
+      {item(null, "ti-settings", "Cài đặt")}
+
+      {/* Premium */}
+      <div style={{ marginTop: "auto", padding: 12 }}>
+        <div style={{ background: "linear-gradient(135deg,#2D1B69,#1A0E40)", border: `0.5px solid ${t.Bb}`, borderRadius: 10, padding: 12 }}>
+          <div style={{ fontSize: 9, fontWeight: 800, color: t.B, textTransform: "uppercase", letterSpacing: ".1em", marginBottom: 4 }}>⭐ Premium</div>
+          <div style={{ fontSize: 11, color: "var(--t2)", lineHeight: 1.5, marginBottom: 10 }}>Mở khóa toàn bộ tính năng &amp; dữ liệu lịch sử</div>
+          <button style={{ width: "100%", background: t.B, border: "none", borderRadius: 7, padding: 7, fontSize: 11, fontWeight: 700, color: "#fff", cursor: "pointer", fontFamily: "inherit" }}>
+            Nâng cấp ngay →
           </button>
         </div>
       </div>
     </aside>
   );
-};
+}
