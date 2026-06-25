@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { io } from "socket.io-client";
 
 /* ───────────────────────────────────────────────────────────────────────
  * useStockWave — nguồn dữ liệu "Sóng cổ phiếu"
@@ -11,6 +12,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 const API_URL = "/api/stock-wave?limit=150";
 const DEFAULT_REFRESH_MS = 15_000;
 const CACHE_KEY = "stock_wave_data_cache";
+const MAX_ROWS = 150;
+const STOCK_WAVE_CHANNELS = ["smdt-stock"];
 
 let globalCache = null;
 
@@ -45,6 +48,72 @@ function normalize(reply) {
     name: stockWaves?.name || "ALL",
     rows,
   };
+}
+
+function sortAndTrimRows(rows) {
+  return [...rows].sort((a, b) => a.date.localeCompare(b.date)).slice(-MAX_ROWS);
+}
+
+function overlayFreshTicks(normalized, touchedMap, sinceMs) {
+  if (!touchedMap || touchedMap.size === 0) return normalized;
+
+  const rowMap = new Map(normalized.rows.map((row) => [row.date, row]));
+  let changed = false;
+
+  for (const [date, value] of [...touchedMap]) {
+    if (value.at < sinceMs) {
+      touchedMap.delete(date);
+      continue;
+    }
+
+    rowMap.set(date, value.row);
+    changed = true;
+  }
+
+  if (!changed) return normalized;
+  return { ...normalized, rows: sortAndTrimRows([...rowMap.values()]) };
+}
+
+function toRealtimeTick(item) {
+  const date = item?.date;
+  if (!date) return null;
+
+  return {
+    date,
+    buy: toNumber(item.buy),
+    waitbuy: toNumber(item.waitbuy),
+    waitsell: toNumber(item.waitsell),
+    sell: toNumber(item.sell),
+    total: toNumber(item.total),
+    reliability: toNumber(item.reliability),
+  };
+}
+
+function extractRealtimeTicks(payload) {
+  if (!payload) return [];
+
+  if (typeof payload === "string") {
+    try {
+      return extractRealtimeTicks(JSON.parse(payload));
+    } catch {
+      return [];
+    }
+  }
+
+  if (Array.isArray(payload)) {
+    return payload.flatMap(extractRealtimeTicks);
+  }
+
+  const data = STOCK_WAVE_CHANNELS.includes(payload?.channel) && payload?.data ? payload.data : payload;
+  const stockWaves = data?.StockWaveRequest?.stockWaves ?? data?.stockWaves;
+  const waveDatas = stockWaves?.waveDatas ?? data?.waveDatas;
+
+  if (Array.isArray(waveDatas)) {
+    return waveDatas.map(toRealtimeTick).filter(Boolean);
+  }
+
+  const tick = toRealtimeTick(data);
+  return tick ? [tick] : [];
 }
 
 function getCachedData() {
@@ -84,6 +153,7 @@ function setCachedData(data) {
 
 export function useStockWave() {
   const inFlightRef = useRef(null);
+  const realtimeTouchedRef = useRef(new Map());
 
   const [state, setState] = useState(() => {
     const cached = getCachedData();
@@ -112,7 +182,7 @@ export function useStockWave() {
         const code = json?.StockWaveRequest?.codeReply?.codeID;
         if (code && code !== "S0000") throw new Error(`API ${code}`);
 
-        const normalized = normalize(json);
+        const normalized = overlayFreshTicks(normalize(json), realtimeTouchedRef.current, startedAt);
         const now = new Date();
 
         setState(normalized);
@@ -164,5 +234,108 @@ export function useStockWave() {
     };
   }, [fetchSnapshot]);
 
-  return { ...state, status, error, updatedAt, refresh: () => fetchSnapshot({ force: true }) };
+  const applyTick = useCallback((payload) => {
+    const ticks = extractRealtimeTicks(payload);
+    if (ticks.length === 0) return;
+
+    const now = new Date();
+    for (const row of ticks) {
+      realtimeTouchedRef.current.set(row.date, { row, at: now.getTime() });
+    }
+
+    setState((prev) => {
+      const rowMap = new Map(prev.rows.map((row) => [row.date, row]));
+      for (const row of ticks) {
+        rowMap.set(row.date, row);
+      }
+
+      const nextState = {
+        ...prev,
+        rows: sortAndTrimRows([...rowMap.values()]),
+      };
+
+      const cacheVal = { ...nextState, updatedAt: now };
+      globalCache = cacheVal;
+      setCachedData(cacheVal);
+
+      return nextState;
+    });
+    setUpdatedAt(now);
+    setStatus("ready");
+    setError(null);
+  }, []);
+
+  return { ...state, status, error, updatedAt, refresh: () => fetchSnapshot({ force: true }), applyTick };
+}
+
+function getRealtimeUrl() {
+  const configured = import.meta.env.VITE_STOCK_WAVE_WS_URL || import.meta.env.VITE_SMDT_WS_URL;
+  if (configured) return configured;
+
+  if (typeof window !== "undefined" && window.location.protocol === "https:") {
+    return `${window.location.origin}/realtime`;
+  }
+
+  return "http://112.213.91.235:3005/realtime";
+}
+
+/* ───────────────────────────────────────────────────────────────────────
+ * useRealtimeStockWaveFeed — cầu nối realtime cho dữ liệu sóng cổ phiếu.
+ *
+ * Mặc định subscribe channel `smdt-stock`; nếu gateway dùng channel khác,
+ * chỉ cần đổi STOCK_WAVE_CHANNELS hoặc cấu hình phía realtime core.
+ * ─────────────────────────────────────────────────────────────────────── */
+export function useRealtimeStockWaveFeed(onTick) {
+  const cbRef = useRef(onTick);
+  cbRef.current = onTick;
+  const [connected, setConnected] = useState(false);
+
+  useEffect(() => {
+    const socket = io(getRealtimeUrl(), {
+      autoConnect: true,
+    });
+
+    const handlePayload = (payload) => {
+      if (extractRealtimeTicks(payload).length > 0) {
+        cbRef.current?.(payload);
+      }
+    };
+
+    socket.on("connect", () => {
+      console.log("Socket.IO connected for stock wave:", socket.nsp);
+      setConnected(true);
+      socket.emit("message", {
+        action: "subscribe",
+        channels: STOCK_WAVE_CHANNELS,
+      });
+    });
+
+    socket.onAny((event, ...args) => {
+      if (event === "connect" || event === "disconnect" || event === "connect_error") return;
+
+      if (STOCK_WAVE_CHANNELS.includes(event) && args.length === 1) {
+        handlePayload({ channel: event, data: args[0] });
+        return;
+      }
+
+      for (const payload of args) {
+        handlePayload(payload);
+      }
+    });
+
+    socket.on("connect_error", (error) => {
+      console.error("Socket.IO stock wave connection error:", error.message);
+    });
+
+    socket.on("disconnect", (reason) => {
+      console.log("Socket.IO stock wave disconnected:", reason);
+      setConnected(false);
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, []);
+
+  return { connected };
 }

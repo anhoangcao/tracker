@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { T, mono } from "../../styles/tokens";
-import { useStockWave } from "../../data/useStockWave";
+import { useRealtimeStockWaveFeed, useStockWave } from "../../data/useStockWave";
 
 const SESSION_OPTIONS = [10, 25, 50];
 
@@ -25,7 +25,8 @@ function formatNumber(value) {
 
 /* ─────────────────────────── SECTION: STOCK WAVE ───────────────────── */
 export default function StockWave() {
-  const { name, rows, status, error, updatedAt, refresh } = useStockWave();
+  const { name, rows, status, error, updatedAt, refresh, applyTick } = useStockWave();
+  const { connected: live } = useRealtimeStockWaveFeed(applyTick);
   const [sessions, setSessions] = useState(25);
   const [page, setPage] = useState(1);
 
@@ -198,8 +199,8 @@ export default function StockWave() {
             gap: 6,
           }}
         >
-          <span style={{ display: "inline-block", width: 7, height: 7, borderRadius: "50%", background: T.text3 }} />
-          <span style={{ color: T.text3, fontWeight: 600 }}>Định kỳ</span>
+          <span style={{ display: "inline-block", width: 7, height: 7, borderRadius: "50%", background: live ? T.buy : T.text3 }} />
+          <span style={{ color: live ? T.buy : T.text3, fontWeight: 600 }}>{live ? "Realtime" : "Định kỳ"}</span>
           <span>
             · Dữ liệu cập nhật: {updatedAt.toLocaleTimeString("vi-VN")} · {rowsDesc.length} phiên
           </span>
