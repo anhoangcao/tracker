@@ -4,7 +4,40 @@ import react from "@vitejs/plugin-react";
 // Local cache variables for dev server
 let devCache = null;
 let devLastFetched = 0;
+let stockWaveDevCache = null;
+let stockWaveDevLastFetched = 0;
 const CACHE_DURATION = 3 * 1000; // Realtime là đường chính; proxy chỉ phục vụ snapshot ban đầu + lưới dự phòng, giữ ngắn để tươi.
+
+async function fetchStockWaveFromSource() {
+  const payloads = [
+    { StockWaveRequest: { name: "ALL", account: "uyen.png" } },
+    { StockWaveRequest: { name: "ALL" } },
+    { StockWaveRequest: {} },
+  ];
+
+  let lastError = null;
+  for (const payload of payloads) {
+    try {
+      const response = await fetch("https://stocktraders.vn/service/data/getStockWave", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+      const data = await response.json();
+      const code = data?.StockWaveRequest?.codeReply?.codeID;
+      const waveDatas = data?.StockWaveRequest?.stockWaves?.waveDatas;
+      if (code && code !== "S0000") throw new Error(`API response code ${code}`);
+      if (!Array.isArray(waveDatas)) throw new Error("API response missing waveDatas");
+      return data;
+    } catch (err) {
+      lastError = err;
+    }
+  }
+
+  throw lastError || new Error("Failed to load stock wave data");
+}
 
 function smdtDevPlugin() {
   return {
@@ -57,6 +90,53 @@ function smdtDevPlugin() {
               SMDTBranchReply: {
                 codeReply: devCache?.SMDTBranchReply?.codeReply || { codeID: "S0000", codeName: "SUCSESS" },
                 SMDTDatas: slicedDatas
+              }
+            };
+
+            res.statusCode = 200;
+            res.setHeader("Content-Type", "application/json");
+            res.setHeader("Cache-Control", "no-store, max-age=0");
+            res.end(JSON.stringify(reply));
+          } catch (err) {
+            res.statusCode = 500;
+            res.setHeader("Content-Type", "application/json");
+            res.end(JSON.stringify({ error: err.message }));
+          }
+        } else if (reqUrl.startsWith("/api/stock-wave")) {
+          const host = req.headers.host || "localhost:3000";
+          const parsedUrl = new URL(reqUrl, `http://${host}`);
+          const limitParam = parsedUrl.searchParams.get("limit");
+          let limit = parseInt(limitParam || "150", 10);
+          if (isNaN(limit) || limit <= 0) {
+            limit = 150;
+          }
+
+          const now = Date.now();
+          if (!stockWaveDevCache || (now - stockWaveDevLastFetched > CACHE_DURATION)) {
+            try {
+              stockWaveDevCache = await fetchStockWaveFromSource();
+              stockWaveDevLastFetched = now;
+            } catch (err) {
+              console.error("Local dev stock wave proxy fetch error:", err);
+              if (!stockWaveDevCache) {
+                res.statusCode = 502;
+                res.setHeader("Content-Type", "application/json");
+                res.end(JSON.stringify({ error: err.message }));
+                return;
+              }
+            }
+          }
+
+          try {
+            const stockWaves = stockWaveDevCache?.StockWaveRequest?.stockWaves || {};
+            const waveDatas = Array.isArray(stockWaves.waveDatas) ? stockWaves.waveDatas : [];
+            const reply = {
+              StockWaveRequest: {
+                codeReply: stockWaveDevCache?.StockWaveRequest?.codeReply || { codeID: "S0000", codeName: "SUCSESS" },
+                stockWaves: {
+                  ...stockWaves,
+                  waveDatas: waveDatas.slice(-limit)
+                }
               }
             };
 

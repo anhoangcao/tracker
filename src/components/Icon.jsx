@@ -55,6 +55,12 @@ export const Icon = ({ name, size = 16, color = "currentColor", strokeWidth = 1.
         <line x1="3" y1="22" x2="21" y2="22" />
       </>
     ),
+    pulse: (
+      <>
+        <path d="M3 12h4l2-6 4 12 2-6h6" />
+        <circle cx="19" cy="12" r="1.5" />
+      </>
+    ),
     info: (
       <>
         <circle cx="12" cy="12" r="9" />

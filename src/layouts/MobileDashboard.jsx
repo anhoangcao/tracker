@@ -11,6 +11,7 @@ import { InvestorProfile } from "../components/sections/InvestorProfile";
 import { Portfolio } from "../components/sections/Portfolio";
 import { AIAdvisor } from "../components/sections/AIAdvisor";
 import SMDTNganh from "../components/sections/SMDTNganh";
+import StockWave from "../components/sections/StockWave";
 
 /* ─────────────────────────── MOBILE LAYOUT ─────────────────────────── */
 export const MobileDashboard = () => {
@@ -175,6 +176,8 @@ export const MobileDashboard = () => {
       >
         {navActive === "SMDT ngành" ? (
           <SMDTNganh />
+        ) : navActive === "Sóng cổ phiếu" ? (
+          <StockWave />
         ) : (
           <>
             <MarketBanner />

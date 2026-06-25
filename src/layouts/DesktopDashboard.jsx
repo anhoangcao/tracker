@@ -9,6 +9,7 @@ import { Portfolio } from "../components/sections/Portfolio";
 import { SectorFlowList, SectorStrengthList, StockFlowList, StockStrengthList } from "../components/sections/TopLists";
 import { AIAdvisor } from "../components/sections/AIAdvisor";
 import SMDTNganh from "../components/sections/SMDTNganh";
+import StockWave from "../components/sections/StockWave";
 
 /* ─────────────────────────── DESKTOP LAYOUT ────────────────────────── */
 export const DesktopDashboard = () => {
@@ -30,6 +31,8 @@ export const DesktopDashboard = () => {
         >
           {navActive === "SMDT ngành" ? (
             <SMDTNganh />
+          ) : navActive === "Sóng cổ phiếu" ? (
+            <StockWave />
           ) : (
             <>
               <MarketBanner />

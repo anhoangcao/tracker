@@ -81,6 +81,7 @@ export const NAV_ITEMS = [
   { label: "Thị trường", icon: "chart", section: "Tổng quan" },
   { label: "Dòng tiền ngành", icon: "bar", section: "Nhóm ngành" },
   { label: "SMDT ngành", icon: "bag", section: "Nhóm ngành" },
+  { label: "Sóng cổ phiếu", icon: "pulse", section: "Đầu tư" },
   { label: "Ngành", icon: "clock", section: "Đầu tư" },
   { label: "Cổ phiếu", icon: "doc", section: "Đầu tư" },
   { label: "Danh mục", icon: "bag", section: "Đầu tư" },
