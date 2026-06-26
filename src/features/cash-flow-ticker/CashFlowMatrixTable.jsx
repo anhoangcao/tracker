@@ -9,6 +9,15 @@ import {
   dominantSig,
 } from "./cashFlowUtils";
 
+function toDateInputValue(date) {
+  if (!date || typeof date !== "string") return "";
+  if (date.includes("/")) {
+    const [d, m, y] = date.split("/");
+    return d && m && y ? `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}` : "";
+  }
+  return date.slice(0, 10);
+}
+
 export function CashFlowMatrixTable({
   collapsedInd,
   colCount,
@@ -17,6 +26,7 @@ export function CashFlowMatrixTable({
   matrix,
   pageDates,
   safePage,
+  activeDate,
   toggleCollapse,
   visibleTickers,
 }) {
@@ -61,10 +71,11 @@ export function CashFlowMatrixTable({
         <tbody>
           {pageDates.map((bucket, di) => {
             const isLatest = di === 0 && safePage === 1;
-            const dateBg = isLatest ? "var(--elev)" : "var(--surf)";
+            const isActive = activeDate === toDateInputValue(bucket.date);
+            const dateBg = isActive || isLatest ? "var(--elev)" : "var(--surf)";
             return (
               <tr key={bucket.date}>
-                <td style={{ ...cashFlowMatrixDateTd, position: "sticky", left: 0, zIndex: 2, background: dateBg, fontWeight: isLatest ? 800 : 700 }}>
+                <td style={{ ...cashFlowMatrixDateTd, position: "sticky", left: 0, zIndex: 2, background: dateBg, fontWeight: isActive || isLatest ? 800 : 700 }}>
                   {fmtDay(bucket.date)}
                   {isLatest && <span style={{ fontSize: 8, background: "var(--Bs)", color: "var(--B)", borderRadius: 3, padding: "1px 5px", marginLeft: 5, fontWeight: 800 }}>HN</span>}
                 </td>
@@ -72,13 +83,13 @@ export function CashFlowMatrixTable({
                   if (collapsedInd.has(g.industry)) {
                     const sig = dominantSig(g.tickers.map((tk) => tickerContentToSig(matrix[bucket.date]?.[tk])));
                     return (
-                      <td key={g.industry} style={{ ...cashFlowMatrixTd, borderLeft: "1px solid var(--bdr)", background: isLatest ? "var(--elev)" : cashFlowMatrixTd.background }}>
+                      <td key={g.industry} style={{ ...cashFlowMatrixTd, borderLeft: "1px solid var(--bdr)", background: isActive || isLatest ? "var(--elev)" : cashFlowMatrixTd.background }}>
                         <CfBadge sig={sig} />
                       </td>
                     );
                   }
                   return g.tickers.map((ticker) => (
-                    <td key={ticker} style={{ ...cashFlowMatrixTd, borderLeft: groupStarts.has(ticker) ? "1px solid var(--bdr)" : cashFlowMatrixTd.borderRight, background: isLatest ? "var(--elev)" : cashFlowMatrixTd.background }}>
+                    <td key={ticker} style={{ ...cashFlowMatrixTd, borderLeft: groupStarts.has(ticker) ? "1px solid var(--bdr)" : cashFlowMatrixTd.borderRight, background: isActive || isLatest ? "var(--elev)" : cashFlowMatrixTd.background }}>
                       <CfBadge sig={tickerContentToSig(matrix[bucket.date]?.[ticker])} />
                     </td>
                   ));

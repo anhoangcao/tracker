@@ -1,9 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { io } from "socket.io-client";
 
-const API_URL = "/api/cashflow-ticker?limit=150";
+const API_BASE_URL = "/api/cashflow-ticker";
+const FULL_LIMIT = 150;
+const INITIAL_LIMIT = 25;
+const PERSIST_LIMIT = 25;
 const DEFAULT_REFRESH_MS = 15_000;
-const CACHE_KEY = "cashflow_ticker_data_cache_v3";
+const CACHE_KEY = "cashflow_ticker_data_cache_v4";
+const LEGACY_CACHE_KEYS = ["cashflow_ticker_data_cache_v3"];
 const CHANNELS = ["money-flow-stock"];
 const REPLY_KEYS = ["CashFlowTickerReply", "CashFlowTickerRequest"];
 
@@ -20,6 +24,10 @@ export function tickerContentToSig(content) {
 
 let globalCache = null;
 
+function getApiUrl(limit) {
+  return `${API_BASE_URL}?limit=${limit}`;
+}
+
 function getRefreshMs() {
   const configured = Number(import.meta.env.VITE_CASHFLOW_TICKER_REFRESH_MS);
   return Number.isFinite(configured) && configured > 0 ? configured : DEFAULT_REFRESH_MS;
@@ -34,6 +42,15 @@ function getReply(data) {
 
 function getBucketDate(bucket, index = 0) {
   return bucket?.date || bucket?.tradingDate || bucket?.tradeDate || bucket?.createdDate || bucket?.time || `latest-${index}`;
+}
+
+function toDateSortKey(date) {
+  if (!date || typeof date !== "string") return "";
+  if (date.includes("/")) {
+    const [d, m, y] = date.split("/");
+    return d && m && y ? `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}` : date;
+  }
+  return date.slice(0, 10);
 }
 
 function normalizePercent(percent) {
@@ -85,7 +102,7 @@ function normalize(reply) {
       return { date, rows: sortRows(rows) };
     })
     .filter((bucket) => bucket.rows.length > 0)
-    .sort((a, b) => String(a.date).localeCompare(String(b.date)));
+    .sort((a, b) => toDateSortKey(a.date).localeCompare(toDateSortKey(b.date)));
 
   return { buckets: normalizedBuckets, allowedTickers };
 }
@@ -118,7 +135,7 @@ function mergeTicks(state, ticks) {
 
   const buckets = [...bucketMap.entries()]
     .map(([date, rows]) => ({ date, rows: sortRows([...rows.values()]) }))
-    .sort((a, b) => String(a.date).localeCompare(String(b.date)))
+    .sort((a, b) => toDateSortKey(a.date).localeCompare(toDateSortKey(b.date)))
     .slice(-150);
 
   return { ...state, buckets };
@@ -182,15 +199,26 @@ function extractRealtimeTicks(payload) {
 function getCachedData() {
   if (globalCache) return globalCache;
   try {
-    const serialized = localStorage.getItem(CACHE_KEY);
+    let serialized = localStorage.getItem(CACHE_KEY);
+    let fromLegacy = false;
+    if (!serialized) {
+      for (const key of LEGACY_CACHE_KEYS) {
+        serialized = localStorage.getItem(key);
+        if (serialized) {
+          fromLegacy = true;
+          break;
+        }
+      }
+    }
     if (!serialized) return null;
     const parsed = JSON.parse(serialized);
     if (parsed && Array.isArray(parsed.buckets)) {
       globalCache = {
-        buckets: parsed.buckets,
+        buckets: parsed.buckets.slice(-PERSIST_LIMIT),
         allowedTickers: Array.isArray(parsed.allowedTickers) ? parsed.allowedTickers : [],
         updatedAt: parsed.updatedAt ? new Date(parsed.updatedAt) : null,
       };
+      if (fromLegacy) setCachedData(globalCache);
       return globalCache;
     }
   } catch (e) {
@@ -201,10 +229,11 @@ function getCachedData() {
 
 function setCachedData(data) {
   try {
+    const buckets = Array.isArray(data.buckets) ? data.buckets.slice(-PERSIST_LIMIT) : [];
     localStorage.setItem(
       CACHE_KEY,
       JSON.stringify({
-        buckets: data.buckets,
+        buckets,
         allowedTickers: data.allowedTickers || [],
         updatedAt: data.updatedAt ? data.updatedAt.toISOString() : null,
       })
@@ -226,15 +255,16 @@ export function useCashFlowTicker() {
   const [error, setError] = useState(null);
   const [updatedAt, setUpdatedAt] = useState(() => cached?.updatedAt || null);
 
-  const fetchSnapshot = useCallback(async ({ background = false, force = false } = {}) => {
+  const fetchSnapshot = useCallback(async ({ background = false, force = false, limit = FULL_LIMIT } = {}) => {
     if (inFlightRef.current && !force) return inFlightRef.current;
 
     const request = (async () => {
       if (!background) setStatus((s) => (s === "ready" ? "ready" : "loading"));
       const startedAt = Date.now();
       try {
-        const separator = API_URL.includes("?") ? "&" : "?";
-        const res = await fetch(`${API_URL}${separator}_=${startedAt}`, { cache: "no-store" });
+        const apiUrl = getApiUrl(limit);
+        const separator = apiUrl.includes("?") ? "&" : "?";
+        const res = await fetch(`${apiUrl}${separator}_=${startedAt}`, { cache: "no-store" });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
         const code = getReply(json)?.codeReply?.codeID;
@@ -270,9 +300,12 @@ export function useCashFlowTicker() {
   }, []);
 
   useEffect(() => {
-    fetchSnapshot();
+    const firstLimit = cached ? FULL_LIMIT : INITIAL_LIMIT;
+    fetchSnapshot({ limit: firstLimit }).then(() => {
+      if (!cached && firstLimit < FULL_LIMIT) fetchSnapshot({ background: true, force: true, limit: FULL_LIMIT });
+    });
     const refresh = () => {
-      if (document.visibilityState === "visible") fetchSnapshot({ background: true });
+      if (document.visibilityState === "visible") fetchSnapshot({ background: true, limit: FULL_LIMIT });
     };
     const timer = window.setInterval(refresh, getRefreshMs());
     window.addEventListener("focus", refresh);

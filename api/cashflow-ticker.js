@@ -1,5 +1,6 @@
 let serverCache = null;
 let lastFetched = 0;
+let refreshPromise = null;
 let totalTradeTickerCache = null;
 let totalTradeLastFetched = 0;
 const CACHE_DURATION = 3 * 1000;
@@ -38,6 +39,27 @@ async function fetchCashFlowTickerFromSource() {
   }
 
   return data;
+}
+
+async function refreshCashFlowTickerCache() {
+  if (refreshPromise) return refreshPromise;
+
+  refreshPromise = fetchCashFlowTickerFromSource()
+    .then((data) => {
+      serverCache = data;
+      lastFetched = Date.now();
+      return data;
+    })
+    .catch((error) => {
+      console.error("Failed to refresh cash flow ticker cache from source:", error);
+      if (!serverCache) throw error;
+      return serverCache;
+    })
+    .finally(() => {
+      refreshPromise = null;
+    });
+
+  return refreshPromise;
 }
 
 async function fetchTotalTradeTickersFromSource() {
@@ -139,19 +161,17 @@ export default async function handler(req, res) {
     limit = 150;
   }
 
-  if (!serverCache || now - lastFetched > CACHE_DURATION) {
+  if (!serverCache) {
     try {
-      serverCache = await fetchCashFlowTickerFromSource();
-      lastFetched = now;
+      await refreshCashFlowTickerCache();
     } catch (error) {
-      console.error("Failed to refresh cash flow ticker cache from source:", error);
-      if (!serverCache) {
-        return res.status(502).json({
-          error: "Failed to load data from source",
-          details: error.message,
-        });
-      }
+      return res.status(502).json({
+        error: "Failed to load data from source",
+        details: error.message,
+      });
     }
+  } else if (now - lastFetched > CACHE_DURATION) {
+    refreshCashFlowTickerCache();
   }
 
   try {

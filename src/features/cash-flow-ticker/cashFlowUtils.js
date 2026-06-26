@@ -1,11 +1,11 @@
 export const CF_SIG = {
-  si: { cls: "100", label: "Đổ vào" },
   sn: { cls: "70", label: "Nhen nhóm" },
+  si: { cls: "100", label: "Đổ vào" },
   so: { cls: "50", label: "Đang thoát" },
   st: { cls: "neg", label: "Thoát ra" },
 };
 
-export const CF_SIG_ORDER = ["si", "sn", "so", "st"];
+export const CF_SIG_ORDER = ["sn", "si", "so", "st"];
 
 export function dominantSig(sigs) {
   const counts = {};
