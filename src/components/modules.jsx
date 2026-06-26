@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTheme } from "../theme";
-import { mono, valToHmCls } from "../styles/tokens";
+import { mono, valToHmCls, hmStyle } from "../styles/tokens";
 import { useSMDT, useRealtimeFeed } from "../data/useSMDT";
 import { useCashFlowBranch, useRealtimeCashFlowFeed, contentToSig } from "../data/useCashFlowBranch";
 import { useCashFlowTicker, useRealtimeCashFlowTickerFeed, tickerContentToSig } from "../data/useCashFlowTicker";
@@ -533,7 +533,7 @@ function SMDTFilterChips({ options, active, onChange }) {
   );
 }
 
-function SMDTSearchPill({ value, onChange, placeholder }) {
+function SMDTSearchPill({ value, onChange, placeholder, style }) {
   return (
     <div
       style={{
@@ -545,6 +545,7 @@ function SMDTSearchPill({ value, onChange, placeholder }) {
         borderRadius: 9,
         background: "#111827",
         border: "1px solid #26324A",
+        ...style,
       }}
     >
       <input
@@ -794,62 +795,136 @@ function ModDongTienNganh() {
   );
 }
 
-const DT_CP_ROWS = [
-  { ma: "ACB", ng: "NH", smdt: ["100", "113.39"], sigs: ["si", "si", "sn", "sn"], trend: ["tg", "↑ Tăng"] },
-  { ma: "SSI", ng: "CK", smdt: ["100", "117.93"], sigs: ["si", "si", "si", "sn"], trend: ["tg", "↑ Mạnh"] },
-  { ma: "FPT", ng: "CN", smdt: ["100", "107.91"], sigs: ["si", "si", "si", "si"], trend: ["tg", "↑ Mạnh"] },
-  { ma: "CSV", ng: "XD", smdt: ["100", "128.74"], sigs: ["si", "si", "si", "sn"], trend: ["tg", "↑ Mạnh"] },
-  { ma: "MBB", ng: "NH", smdt: ["100", "103.56"], sigs: ["sn", "sn", "so", "so"], trend: ["tb", "→ Phục hồi"] },
-  { ma: "VCB", ng: "NH", smdt: ["70", "98.42"], sigs: ["so", "so", "st", "st"], trend: ["tr", "↓ Giảm"] },
-  { ma: "PDR", ng: "BĐS", smdt: ["neg", "-11.88"], sigs: ["st", "st", "st", "st"], trend: ["tr", "↓ Yếu"] },
-];
+/* Tín hiệu dòng tiền cổ phiếu — nhãn rút gọn + lớp màu heatmap (theo bản mẫu). */
+const CF_SIG = {
+  si: { cls: "100", label: "Đổ vào" },
+  sn: { cls: "70",  label: "Nhen nhóm" },
+  so: { cls: "50",  label: "Đang thoát" },
+  st: { cls: "neg", label: "Thoát ra" },
+};
+const CF_SIG_ORDER = ["si", "sn", "so", "st"];
+
+/* Tín hiệu áp đảo trong một tập nhãn (dùng cho ngành / nhóm gộp). */
+function dominantSig(sigs) {
+  const c = {};
+  for (const s of sigs) if (s) c[s] = (c[s] || 0) + 1;
+  let best = null, bestN = 0;
+  for (const k of CF_SIG_ORDER) if ((c[k] || 0) > bestN) { best = k; bestN = c[k]; }
+  return best;
+}
+
+/* Huy hiệu tín hiệu dùng màu heatmap. */
+function CfBadge({ sig, small }) {
+  const { t } = useTheme();
+  const meta = CF_SIG[sig];
+  if (!meta) return <span style={{ color: "var(--t4)" }}>—</span>;
+  const s = hmStyle(meta.cls, t);
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        borderRadius: 6,
+        whiteSpace: "nowrap",
+        fontWeight: 700,
+        background: s.bg,
+        border: `0.5px solid ${s.border}`,
+        color: s.color,
+        fontSize: small ? 10 : 11,
+        padding: small ? "2px 8px" : "5px 9px",
+        minWidth: small ? 0 : 92,
+      }}
+    >
+      {meta.label}
+    </span>
+  );
+}
 
 function ModDongTienCP() {
-  const { t } = useTheme();
-  const narrow = useNarrow();
   const { latest, buckets, status, error, updatedAt, refresh, applyTick } = useCashFlowTicker();
   const { connected: live } = useRealtimeCashFlowTickerFeed(applyTick);
   const [filter, setFilter] = useState("all");
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
-  const [sessions, setSessions] = useState(25);
+  const [sessions, setSessions] = useState(12);
+  const [hiddenInd, setHiddenInd] = useState(() => new Set());
+  const [collapsedInd, setCollapsedInd] = useState(() => new Set());
 
   const rows = latest?.rows || [];
-  const tickerPool = useMemo(() => {
+
+  /* Mã + ngành (type), giữ thứ tự xuất hiện của ngành để gom nhóm cột. */
+  const { tickerPool, industries } = useMemo(() => {
     const seen = new Map();
+    const indOrder = [];
+    const indSeen = new Set();
     for (const bucket of buckets) {
       for (const row of bucket.rows || []) {
-        if (!seen.has(row.ticker)) seen.set(row.ticker, { ticker: row.ticker, type: row.type || "" });
+        const ind = (row.type || "").trim() || "Khác";
+        if (!seen.has(row.ticker)) seen.set(row.ticker, { ticker: row.ticker, type: ind });
+        if (!indSeen.has(ind)) { indSeen.add(ind); indOrder.push(ind); }
       }
     }
-    return [...seen.values()].sort((a, b) => a.ticker.localeCompare(b.ticker));
+    const pool = [...seen.values()].sort((a, b) => a.ticker.localeCompare(b.ticker));
+    return { tickerPool: pool, industries: indOrder.sort((a, b) => a.localeCompare(b, "vi")) };
   }, [buckets]);
+
   const latestByTicker = useMemo(() => {
     const map = new Map();
     for (const row of rows) map.set(row.ticker, row);
     return map;
   }, [rows]);
-  const counts = rows.reduce(
-    (acc, row) => {
-      acc.total += 1;
-      acc[row.content] = (acc[row.content] || 0) + 1;
-      return acc;
-    },
-    { total: 0 }
+
+  const sigOfTicker = useCallback(
+    (ticker) => tickerContentToSig(latestByTicker.get(ticker)?.content || ""),
+    [latestByTicker]
   );
 
-  const filteredTickers = tickerPool
-    .filter((row) => {
-      const content = latestByTicker.get(row.ticker)?.content || "";
-      return filter === "all" ? true : tickerContentToSig(content) === filter;
-    })
-    .filter((row) => {
-      const q = query.trim().toLowerCase();
-      return q ? row.ticker.toLowerCase().includes(q) : true;
-    });
+  /* Tín hiệu đại diện của từng ngành = tín hiệu áp đảo ở phiên mới nhất. */
+  const industrySig = useMemo(() => {
+    const map = {};
+    for (const ind of industries) {
+      map[ind] = dominantSig(tickerPool.filter((tk) => tk.type === ind).map((tk) => sigOfTicker(tk.ticker)));
+    }
+    return map;
+  }, [industries, tickerPool, sigOfTicker]);
 
-  const visibleTickers = filteredTickers.map((row) => row.ticker);
-  const datesDesc = [...buckets].reverse();
+  /* Lọc theo ngành đang chọn + trạng thái + tìm kiếm. */
+  const filteredTickers = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return tickerPool.filter((tk) => {
+      if (hiddenInd.has(tk.type)) return false;
+      if (filter !== "all" && sigOfTicker(tk.ticker) !== filter) return false;
+      if (q && !tk.ticker.toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }, [tickerPool, hiddenInd, filter, query, sigOfTicker]);
+
+  /* Gom cột theo ngành để dựng header nhóm. */
+  const groups = useMemo(() => {
+    const byInd = new Map();
+    for (const tk of filteredTickers) {
+      if (!byInd.has(tk.type)) byInd.set(tk.type, []);
+      byInd.get(tk.type).push(tk.ticker);
+    }
+    return industries.filter((i) => byInd.has(i)).map((i) => ({ industry: i, tickers: byInd.get(i) }));
+  }, [filteredTickers, industries]);
+
+  const visibleTickers = useMemo(() => groups.flatMap((g) => g.tickers), [groups]);
+  const groupStarts = useMemo(() => new Set(groups.map((g) => g.tickers[0])), [groups]);
+  const colCount = useMemo(
+    () => groups.reduce((a, g) => a + (collapsedInd.has(g.industry) ? 1 : g.tickers.length), 0),
+    [groups, collapsedInd]
+  );
+  const toggleCollapse = useCallback((ind) => {
+    setCollapsedInd((prev) => {
+      const next = new Set(prev);
+      if (next.has(ind)) next.delete(ind); else next.add(ind);
+      return next;
+    });
+  }, []);
+
+  const datesDesc = useMemo(() => [...buckets].reverse(), [buckets]);
   const totalPages = Math.max(1, Math.ceil(datesDesc.length / sessions));
   const safePage = Math.min(page, totalPages);
   const pageDates = datesDesc.slice((safePage - 1) * sessions, safePage * sessions);
@@ -857,16 +932,44 @@ function ModDongTienCP() {
     const map = {};
     for (const bucket of buckets) {
       map[bucket.date] = {};
-      for (const row of bucket.rows) {
-        map[bucket.date][row.ticker] = row.content;
-      }
+      for (const row of bucket.rows) map[bucket.date][row.ticker] = row.content;
     }
     return map;
   }, [buckets]);
   const latestDate = latest?.date || datesDesc[0]?.date || null;
-  const rangeLabel = datesDesc.length ? `${fmtDay(datesDesc[datesDesc.length - 1].date)} → ${fmtDay(datesDesc[0].date)}` : "—";
   const activeTickers = filteredTickers.length;
-  const totalTickers = tickerPool.length;
+
+  const toggleInd = useCallback((ind) => {
+    setHiddenInd((prev) => {
+      const next = new Set(prev);
+      if (next.has(ind)) next.delete(ind); else next.add(ind);
+      return next;
+    });
+  }, []);
+  const selectAllInd = useCallback(() => setHiddenInd(new Set()), []);
+  const clearAllInd = useCallback(() => setHiddenInd(new Set(industries)), [industries]);
+
+  const exportExcel = useCallback(() => {
+    const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const header = ["Ngày", ...visibleTickers].map(esc).join(",");
+    const lines = [header];
+    for (const bucket of datesDesc) {
+      const cells = visibleTickers.map((tk) => {
+        const sig = tickerContentToSig(matrix[bucket.date]?.[tk]);
+        return esc(sig ? CF_SIG[sig].label : "");
+      });
+      lines.push([esc(fmtFull(bucket.date)), ...cells].join(","));
+    }
+    const blob = new Blob(["﻿" + lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `dong-tien-co-phieu-${(latestDate || "").replace(/[/]/g, "-")}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, [visibleTickers, datesDesc, matrix, latestDate]);
 
   if (status === "loading" && !rows.length) return <Banner>Đang tải dữ liệu dòng tiền cổ phiếu…</Banner>;
   if (status === "error" && !rows.length)
@@ -874,80 +977,122 @@ function ModDongTienCP() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-      <div style={{ display: "grid", gridTemplateColumns: narrow ? "1fr 1fr" : "repeat(4,1fr)", gap: 10 }}>
-        <StatCard label="Tất cả mã" val={fmtNum(totalTickers)} sub={latestDate ? `Phiên ${fmtFull(latestDate)}` : "Từ API getCashFlowTicker"} colorKey="B" />
-        <StatCard label="Tiếp tục đổ vào" val={fmtNum(counts["Tiếp tục đổ vào"] || 0)} sub={rangeLabel} colorKey="G" />
-        <StatCard label="Đang thoát ra" val={fmtNum(counts["Đang thoát ra"] || 0)} sub={`${fmtNum(counts.total)} mã ở phiên mới nhất`} colorKey="A" />
-        <StatCard label="Tiếp tục thoát ra" val={fmtNum(counts["Tiếp tục thoát ra"] || 0)} sub={`${fmtNum(buckets.length)} phiên dữ liệu`} colorKey="R" />
+      {/* Thanh công cụ + bộ lọc */}
+      <div style={{ display: "flex", alignItems: "center", gap: 9, flexWrap: "wrap" }}>
+        <IndustryPicker
+          industries={industries}
+          hidden={hiddenInd}
+          industrySig={industrySig}
+          onToggle={toggleInd}
+          onAll={selectAllInd}
+          onNone={clearAllInd}
+        />
+        <SMDTToolbarPill>
+          <i className="ti ti-calendar" style={{ fontSize: 13, color: "var(--t4)" }} />
+          {latestDate ? fmtFull(latestDate) : "—"}
+        </SMDTToolbarPill>
+        <SMDTToolbarPill as="label" style={{ cursor: "pointer" }}>
+          <select
+            value={sessions}
+            onChange={(e) => { setSessions(Number(e.target.value)); setPage(1); }}
+            style={{ border: "none", outline: "none", background: "transparent", color: "var(--t2)", font: "inherit", fontWeight: 700, cursor: "pointer", appearance: "none", padding: 0 }}
+          >
+            {[12, 25, 50].map((n) => (
+              <option key={n} value={n} style={{ background: "var(--surf)", color: "var(--t1)" }}>{n} phiên</option>
+            ))}
+          </select>
+          <i className="ti ti-chevron-down" style={{ fontSize: 12, color: "var(--t4)" }} />
+        </SMDTToolbarPill>
+        <SMDTSearchPill placeholder="Tìm mã..." value={query} onChange={(e) => setQuery(e.target.value)} style={{ width: 170, flexShrink: 0 }} />
+        <InlineFilterChips
+          options={[
+            { id: "all", label: "Tất cả" },
+            { id: "si", label: "Đổ vào" },
+            { id: "sn", label: "Nhen nhóm" },
+            { id: "so", label: "Đang thoát" },
+            { id: "st", label: "Thoát ra" },
+          ]}
+          active={filter}
+          onChange={setFilter}
+        />
+        <button
+          onClick={exportExcel}
+          style={{ marginLeft: "auto", height: 34, padding: "0 16px", borderRadius: 9, background: "var(--B)", color: "#fff", border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 7, whiteSpace: "nowrap", fontFamily: "inherit" }}
+        >
+          <i className="ti ti-file-spreadsheet" style={{ fontSize: 15 }} />Xuất Excel
+        </button>
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", justifyContent: "space-between" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          <InlineFilterChips
-            options={[
-              { id: "all", label: `Tất cả ${fmtNum(totalTickers)}` },
-              { id: "si", label: "Tiếp tục đổ vào" },
-              { id: "sn", label: "Nhen nhóm" },
-              { id: "so", label: "Đang thoát ra" },
-              { id: "st", label: "Tiếp tục thoát" },
-            ]}
-            active={filter}
-            onChange={setFilter}
-          />
-          <SMDTToolbarPill as="label" style={{ cursor: "pointer" }}>
-            <span>Hiển thị:</span>
-            <select
-              value={sessions}
-              onChange={(e) => {
-                setSessions(Number(e.target.value));
-                setPage(1);
-              }}
-              style={{
-                border: "none",
-                outline: "none",
-                background: "transparent",
-                color: "var(--t2)",
-                font: "inherit",
-                fontWeight: 700,
-                cursor: "pointer",
-                appearance: "none",
-                padding: 0,
-              }}
-            >
-              {SESSION_OPTIONS.map((n) => (
-                <option key={n} value={n} style={{ background: "var(--surf)", color: "var(--t1)" }}>
-                  {n} phiên
-                </option>
-              ))}
-            </select>
-          </SMDTToolbarPill>
-          <span style={{ fontSize: 11, color: "var(--t4)", whiteSpace: "nowrap" }}>{fmtNum(activeTickers)} mã đang hiển thị</span>
-        </div>
-        <SearchBox placeholder="Tìm mã..." value={query} onChange={(e) => setQuery(e.target.value)} />
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
+        <span style={{ fontSize: 11, color: "var(--t4)", fontWeight: 600 }}>{fmtNum(activeTickers)} mã</span>
       </div>
 
       <Card noPad>
         <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, minWidth: Math.max(760, 150 + visibleTickers.length * 128) }}>
+          <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, minWidth: Math.max(640, 150 + colCount * 116) }}>
             <thead>
               <tr>
-                <th style={{ ...cashFlowMatrixTh, position: "sticky", left: 0, zIndex: 3, width: 150, textAlign: "left" }}>DATE ↓</th>
-                {visibleTickers.map((ticker) => (
-                  <th key={ticker} style={cashFlowMatrixTh}>{ticker}</th>
-                ))}
-            </tr>
-          </thead>
-          <tbody>
-              {pageDates.map((bucket) => (
-                <tr key={bucket.date}>
-                  <td style={{ ...cashFlowMatrixDateTd, position: "sticky", left: 0, zIndex: 2 }}>{fmtDay(bucket.date)}</td>
-                  {visibleTickers.map((ticker) => (
-                    <td key={ticker} style={cashFlowMatrixTd}>
-                      <CashFlowTickerCell content={matrix[bucket.date]?.[ticker]} />
+                <th rowSpan={2} style={{ ...cashFlowMatrixTh, position: "sticky", left: 0, zIndex: 4, width: 150, textAlign: "left" }}>NGÀY ↓</th>
+                {groups.map((g) => {
+                  const collapsed = collapsedInd.has(g.industry);
+                  return (
+                    <th
+                      key={g.industry}
+                      colSpan={collapsed ? 1 : g.tickers.length}
+                      onClick={() => toggleCollapse(g.industry)}
+                      title={collapsed ? "Mở rộng nhóm" : "Thu gọn nhóm"}
+                      style={{ ...cashFlowGroupTh, cursor: "pointer", borderLeft: "1px solid var(--bdr)" }}
+                    >
+                      <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                        <span>{g.industry.toUpperCase()}</span>
+                        {!collapsed && (
+                          <span style={{ fontSize: 9, fontWeight: 800, color: "var(--B)", background: "var(--Bs)", borderRadius: 4, padding: "1px 5px" }}>{g.tickers.length}</span>
+                        )}
+                        <span style={{ color: "var(--t4)", fontSize: 12 }}>{collapsed ? "›" : "‹"}</span>
+                      </span>
+                    </th>
+                  );
+                })}
+              </tr>
+              <tr>
+                {groups.map((g) => {
+                  if (collapsedInd.has(g.industry)) {
+                    return <th key={g.industry} style={{ ...cashFlowMatrixTh, borderLeft: "1px solid var(--bdr)" }}>Tổng hợp</th>;
+                  }
+                  return g.tickers.map((ticker) => (
+                    <th key={ticker} style={{ ...cashFlowMatrixTh, borderLeft: groupStarts.has(ticker) ? "1px solid var(--bdr)" : cashFlowMatrixTh.borderRight }}>{ticker}</th>
+                  ));
+                })}
+              </tr>
+            </thead>
+            <tbody>
+              {pageDates.map((bucket, di) => {
+                const isLatest = di === 0 && safePage === 1;
+                const dateBg = isLatest ? "var(--elev)" : "var(--surf)";
+                return (
+                  <tr key={bucket.date}>
+                    <td style={{ ...cashFlowMatrixDateTd, position: "sticky", left: 0, zIndex: 2, background: dateBg, fontWeight: isLatest ? 800 : 700 }}>
+                      {fmtDay(bucket.date)}
+                      {isLatest && <span style={{ fontSize: 8, background: "var(--Bs)", color: "var(--B)", borderRadius: 3, padding: "1px 5px", marginLeft: 5, fontWeight: 800 }}>HN</span>}
                     </td>
-                  ))}
-                </tr>
-              ))}
+                    {groups.map((g) => {
+                      if (collapsedInd.has(g.industry)) {
+                        const sig = dominantSig(g.tickers.map((tk) => tickerContentToSig(matrix[bucket.date]?.[tk])));
+                        return (
+                          <td key={g.industry} style={{ ...cashFlowMatrixTd, borderLeft: "1px solid var(--bdr)", background: isLatest ? "var(--elev)" : cashFlowMatrixTd.background }}>
+                            <CfBadge sig={sig} />
+                          </td>
+                        );
+                      }
+                      return g.tickers.map((ticker) => (
+                        <td key={ticker} style={{ ...cashFlowMatrixTd, borderLeft: groupStarts.has(ticker) ? "1px solid var(--bdr)" : cashFlowMatrixTd.borderRight, background: isLatest ? "var(--elev)" : cashFlowMatrixTd.background }}>
+                          <CfBadge sig={tickerContentToSig(matrix[bucket.date]?.[ticker])} />
+                        </td>
+                      ));
+                    })}
+                  </tr>
+                );
+              })}
               {visibleTickers.length === 0 && (
                 <tr><td colSpan={2} style={{ padding: 28, textAlign: "center", color: "var(--t3)" }}>Không có mã phù hợp.</td></tr>
               )}
@@ -955,12 +1100,76 @@ function ModDongTienCP() {
           </table>
         </div>
       </Card>
-      {totalPages > 1 && (
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 12, flexWrap: "wrap" }}>
-          <Pagination page={safePage} totalPages={totalPages} onChange={setPage} />
+
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+        <CashFlowLegend />
+        <Pagination page={safePage} totalPages={totalPages} onChange={setPage} />
+      </div>
+      <LiveFooter live={live} updatedAt={updatedAt} extra={`${fmtNum(activeTickers)} / ${fmtNum(tickerPool.length)} mã · ${datesDesc.length} phiên`} />
+    </div>
+  );
+}
+
+/* Bộ chọn ngành dạng popover (đa lựa chọn). */
+function IndustryPicker({ industries, hidden, industrySig, onToggle, onAll, onNone }) {
+  const ref = useRef(null);
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, [open]);
+  const selected = industries.filter((i) => !hidden.has(i)).length;
+
+  return (
+    <div ref={ref} style={{ position: "relative" }}>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        style={{ minHeight: 30, display: "inline-flex", alignItems: "center", gap: 7, padding: "0 14px", borderRadius: 15, background: open ? "var(--Bs)" : "#111827", border: `1px solid ${open ? "var(--Bb)" : "#26324A"}`, color: "var(--B)", fontSize: 11, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", fontFamily: "inherit" }}
+      >
+        <i className="ti ti-stack-2" style={{ fontSize: 14 }} />
+        {selected} / {industries.length} ngành
+        <i className={`ti ti-chevron-${open ? "up" : "down"}`} style={{ fontSize: 13 }} />
+      </button>
+      {open && (
+        <div style={{ position: "absolute", top: "calc(100% + 8px)", left: 0, zIndex: 60, width: 340, maxHeight: 440, overflowY: "auto", background: "var(--surf)", border: "1px solid var(--bdr)", borderRadius: 12, padding: 8, boxShadow: "0 16px 48px rgba(0,0,0,.45)" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 8px 10px" }}>
+            <span style={{ fontSize: 11, fontWeight: 800, color: "var(--t3)", textTransform: "uppercase", letterSpacing: ".07em" }}>Chọn ngành</span>
+            <span style={{ display: "inline-flex", gap: 12 }}>
+              <span onClick={onAll} style={{ fontSize: 12, fontWeight: 700, color: "var(--B)", cursor: "pointer" }}>Tất cả</span>
+              <span onClick={onNone} style={{ fontSize: 12, fontWeight: 700, color: "var(--R)", cursor: "pointer" }}>Bỏ hết</span>
+            </span>
+          </div>
+          {industries.map((ind) => {
+            const on = !hidden.has(ind);
+            return (
+              <button
+                key={ind}
+                onClick={() => onToggle(ind)}
+                style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", padding: "8px 8px", borderRadius: 8, background: on ? "var(--Bs)" : "transparent", border: "none", cursor: "pointer", fontFamily: "inherit", marginBottom: 2 }}
+              >
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 11 }}>
+                  <span style={{ width: 18, height: 18, borderRadius: 5, display: "inline-flex", alignItems: "center", justifyContent: "center", background: on ? "var(--B)" : "transparent", border: `1.5px solid ${on ? "var(--B)" : "var(--bdr)"}`, color: "#fff", flexShrink: 0 }}>
+                    {on && <i className="ti ti-check" style={{ fontSize: 12 }} />}
+                  </span>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: on ? "var(--t1)" : "var(--t2)" }}>{ind}</span>
+                </span>
+                <CfBadge sig={industrySig[ind]} small />
+              </button>
+            );
+          })}
         </div>
       )}
-      <LiveFooter live={live} updatedAt={updatedAt} extra={`${fmtNum(activeTickers)} / ${fmtNum(totalTickers)} mã · ${datesDesc.length} phiên`} />
+    </div>
+  );
+}
+
+/* Chú giải màu tín hiệu (góc dưới bảng). */
+function CashFlowLegend() {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 9, flexWrap: "wrap" }}>
+      {CF_SIG_ORDER.map((k) => <CfBadge key={k} sig={k} small />)}
     </div>
   );
 }
@@ -998,30 +1207,20 @@ const cashFlowMatrixTd = {
   background: "var(--surf)",
 };
 
-function CashFlowTickerCell({ content }) {
-  const sig = tickerContentToSig(content);
-  const styles = {
-    si: { label: "Tiếp tục vào", bg: "rgba(61,214,140,.18)", color: "#3DD68C" },
-    sn: { label: "Nhen nhóm vào", bg: "rgba(190,242,100,.18)", color: "#84CC16" },
-    so: { label: "Đang thoát ra", bg: "rgba(255,159,10,.16)", color: "#FF9F0A" },
-    st: { label: "Tiếp tục thoát", bg: "rgba(255,45,85,.14)", color: "#FF2D55" },
-  };
-  const s = styles[sig];
-
-  if (!s) {
-    return (
-      <span style={{ display: "inline-flex", minWidth: 92, height: 24, alignItems: "center", justifyContent: "center", borderRadius: 6, background: "rgba(92,112,144,.12)", color: "var(--t3)", fontSize: 11, fontWeight: 700 }}>
-        -
-      </span>
-    );
-  }
-
-  return (
-    <span style={{ display: "inline-flex", minWidth: 108, height: 24, alignItems: "center", justifyContent: "center", borderRadius: 6, background: s.bg, color: s.color, fontSize: 11, fontWeight: 800, whiteSpace: "nowrap" }}>
-      {s.label}
-    </span>
-  );
-}
+const cashFlowGroupTh = {
+  fontSize: 11,
+  fontWeight: 800,
+  color: "var(--t1)",
+  textTransform: "uppercase",
+  letterSpacing: ".06em",
+  padding: "11px 12px",
+  borderBottom: "0.5px solid var(--bdr)",
+  borderRight: "0.5px solid var(--bdrs)",
+  borderLeft: "0.5px solid var(--bdrs)",
+  background: "var(--elev)",
+  textAlign: "center",
+  whiteSpace: "nowrap",
+};
 
 /* ═══════════════════════════ SMDT CỔ PHIẾU (REAL) ═════════════════════════ */
 function ModSMDTMa() {
