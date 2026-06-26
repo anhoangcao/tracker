@@ -786,10 +786,7 @@ function ModDongTienNganh() {
         </TableWrap>
       </Card>
 
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 11, gap: 12, flexWrap: "wrap" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          {["si", "sn", "so", "st"].map((s) => <Sig key={s} type={s} />)}
-        </div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", marginTop: 11 }}>
         <Pagination page={safePage} totalPages={totalPages} onChange={setPage} />
       </div>
       <LiveFooter live={live} updatedAt={updatedAt} extra={`${visibleBranches.length} ngành · ${datesDesc.length} phiên`} />
@@ -814,6 +811,8 @@ function ModDongTienCP() {
   const { connected: live } = useRealtimeCashFlowTickerFeed(applyTick);
   const [filter, setFilter] = useState("all");
   const [query, setQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const [sessions, setSessions] = useState(25);
 
   const rows = latest?.rows || [];
   const tickerPool = useMemo(() => {
@@ -851,6 +850,9 @@ function ModDongTienCP() {
 
   const visibleTickers = filteredTickers.map((row) => row.ticker);
   const datesDesc = [...buckets].reverse();
+  const totalPages = Math.max(1, Math.ceil(datesDesc.length / sessions));
+  const safePage = Math.min(page, totalPages);
+  const pageDates = datesDesc.slice((safePage - 1) * sessions, safePage * sessions);
   const matrix = useMemo(() => {
     const map = {};
     for (const bucket of buckets) {
@@ -892,6 +894,33 @@ function ModDongTienCP() {
             active={filter}
             onChange={setFilter}
           />
+          <SMDTToolbarPill as="label" style={{ cursor: "pointer" }}>
+            <span>Hiển thị:</span>
+            <select
+              value={sessions}
+              onChange={(e) => {
+                setSessions(Number(e.target.value));
+                setPage(1);
+              }}
+              style={{
+                border: "none",
+                outline: "none",
+                background: "transparent",
+                color: "var(--t2)",
+                font: "inherit",
+                fontWeight: 700,
+                cursor: "pointer",
+                appearance: "none",
+                padding: 0,
+              }}
+            >
+              {SESSION_OPTIONS.map((n) => (
+                <option key={n} value={n} style={{ background: "var(--surf)", color: "var(--t1)" }}>
+                  {n} phiên
+                </option>
+              ))}
+            </select>
+          </SMDTToolbarPill>
           <span style={{ fontSize: 11, color: "var(--t4)", whiteSpace: "nowrap" }}>{fmtNum(activeTickers)} mã đang hiển thị</span>
         </div>
         <SearchBox placeholder="Tìm mã..." value={query} onChange={(e) => setQuery(e.target.value)} />
@@ -906,10 +935,10 @@ function ModDongTienCP() {
                 {visibleTickers.map((ticker) => (
                   <th key={ticker} style={cashFlowMatrixTh}>{ticker}</th>
                 ))}
-              </tr>
-            </thead>
-            <tbody>
-              {datesDesc.map((bucket) => (
+            </tr>
+          </thead>
+          <tbody>
+              {pageDates.map((bucket) => (
                 <tr key={bucket.date}>
                   <td style={{ ...cashFlowMatrixDateTd, position: "sticky", left: 0, zIndex: 2 }}>{fmtDay(bucket.date)}</td>
                   {visibleTickers.map((ticker) => (
@@ -926,14 +955,11 @@ function ModDongTienCP() {
           </table>
         </div>
       </Card>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          {["si", "sn", "so", "st"].map((s) => <Sig key={s} type={s} />)}
+      {totalPages > 1 && (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 12, flexWrap: "wrap" }}>
+          <Pagination page={safePage} totalPages={totalPages} onChange={setPage} />
         </div>
-        <div style={{ fontSize: 11, color: "var(--t4)" }}>
-          channel <span style={{ color: "var(--t2)", fontWeight: 700 }}>money-flow-stock</span>
-        </div>
-      </div>
+      )}
       <LiveFooter live={live} updatedAt={updatedAt} extra={`${fmtNum(activeTickers)} / ${fmtNum(totalTickers)} mã · ${datesDesc.length} phiên`} />
     </div>
   );
