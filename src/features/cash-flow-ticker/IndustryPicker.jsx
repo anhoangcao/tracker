@@ -74,7 +74,7 @@ export function IndustryPicker({ industries, hidden, industrySig, onToggle, onAl
   const sections = splitIndustries(industries);
 
   return (
-    <div ref={ref} style={{ position: "relative" }}>
+    <div ref={ref} style={{ position: "relative", flexShrink: 0 }}>
       <button
         onClick={() => setOpen((o) => !o)}
         style={{ minHeight: 30, display: "inline-flex", alignItems: "center", gap: 7, padding: "0 14px", borderRadius: 15, background: open ? "var(--Bs)" : "#111827", border: `1px solid ${open ? "var(--Bb)" : "#26324A"}`, color: "var(--B)", fontSize: 11, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", fontFamily: "inherit" }}

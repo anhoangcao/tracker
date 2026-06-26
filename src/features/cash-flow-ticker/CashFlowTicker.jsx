@@ -251,7 +251,7 @@ export function ModDongTienCP() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       {/* Thanh công cụ + bộ lọc */}
-      <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "nowrap", overflowX: "auto", paddingBottom: 2 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "nowrap", overflow: "visible", paddingBottom: 2 }}>
         <IndustryPicker
           industries={industries}
           hidden={hiddenInd}
