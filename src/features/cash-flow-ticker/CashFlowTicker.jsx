@@ -120,6 +120,20 @@ export function ModDongTienCP() {
       return next;
     });
   }, []);
+  const showIndustries = useCallback((items) => {
+    setHiddenInd((prev) => {
+      const next = new Set(prev);
+      for (const ind of items) next.delete(ind);
+      return next;
+    });
+  }, []);
+  const hideIndustries = useCallback((items) => {
+    setHiddenInd((prev) => {
+      const next = new Set(prev);
+      for (const ind of items) next.add(ind);
+      return next;
+    });
+  }, []);
   const selectAllInd = useCallback(() => setHiddenInd(new Set()), []);
   const clearAllInd = useCallback(() => setHiddenInd(new Set(industries)), [industries]);
 
@@ -160,6 +174,8 @@ export function ModDongTienCP() {
           onToggle={toggleInd}
           onAll={selectAllInd}
           onNone={clearAllInd}
+          onShowIndustries={showIndustries}
+          onHideIndustries={hideIndustries}
         />
         <SMDTToolbarPill>
           <i className="ti ti-calendar" style={{ fontSize: 13, color: "var(--t4)" }} />
