@@ -10,11 +10,14 @@ let cashFlowDevCache = null;
 let cashFlowDevLastFetched = 0;
 let cashFlowTickerDevCache = null;
 let cashFlowTickerDevLastFetched = 0;
+let totalTradeTickerDevCache = null;
+let totalTradeTickerDevLastFetched = 0;
 let smdtTickerDevCache = null;
 let smdtTickerDevLastFetched = 0;
 let branchPathDevCache = null;
 let branchPathDevLastFetched = 0;
 const BRANCH_PATH_CACHE_DURATION = 5 * 60 * 1000; // Thành phần ngành/mã ít đổi → cache dài hơn.
+const TOTAL_TRADE_CACHE_DURATION = 5 * 60 * 1000;
 const CACHE_DURATION = 3 * 1000; // Realtime là đường chính; proxy chỉ phục vụ snapshot ban đầu + lưới dự phòng, giữ ngắn để tươi.
 const API_ACCOUNT = "thao.dtt";
 const STOCK_WAVE_REPLY_KEYS = ["StockWaveReply", "StockWaveRequest"];
@@ -56,6 +59,66 @@ function getCashFlowTickerReply(data) {
     }
   }
   return null;
+}
+
+async function fetchTotalTradeTickersFromSource() {
+  const response = await fetch("https://stocktraders.vn/service/data/getTotalTrade", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ TotalTradeRequest: { account: API_ACCOUNT } })
+  });
+  if (!response.ok) throw new Error(`TotalTrade HTTP ${response.status}`);
+
+  const data = await response.json();
+  const reply = data?.TotalTradeReply || data?.TotalTradeRequest || {};
+  const code = reply?.codeReply?.codeID;
+  const stockTotals = reply?.stockTotals;
+  if (code && code !== "S0000") throw new Error(`TotalTrade API response code ${code}`);
+  if (!Array.isArray(stockTotals)) throw new Error("TotalTrade API response missing stockTotals");
+
+  return stockTotals
+    .map((item) => item?.ticker || item?.code || item?.symbol)
+    .filter(Boolean)
+    .map((ticker) => String(ticker).trim().toUpperCase());
+}
+
+async function getTotalTradeTickers() {
+  const now = Date.now();
+  if (!totalTradeTickerDevCache || (now - totalTradeTickerDevLastFetched > TOTAL_TRADE_CACHE_DURATION)) {
+    try {
+      totalTradeTickerDevCache = await fetchTotalTradeTickersFromSource();
+      totalTradeTickerDevLastFetched = now;
+    } catch (err) {
+      console.error("Local dev total trade ticker proxy fetch error:", err);
+      if (!totalTradeTickerDevCache) throw err;
+    }
+  }
+  return totalTradeTickerDevCache;
+}
+
+function filterCashTickerDatas(datas, allowedTickerSet) {
+  if (!Array.isArray(datas)) return [];
+  return datas
+    .filter((item) => {
+      const ticker = item?.ticker || item?.code || item?.symbol;
+      return ticker && allowedTickerSet.has(String(ticker).trim().toUpperCase());
+    })
+    .map((item) => {
+      const ticker = item?.ticker || item?.code || item?.symbol;
+      const normalizedTicker = String(ticker || "").trim().toUpperCase();
+      return { ...item, ticker: normalizedTicker };
+    });
+}
+
+function filterCashFlowTickerBucket(bucket, allowedTickerSet) {
+  const filtered = { ...bucket };
+  if (Array.isArray(bucket?.cashTickerDatas)) {
+    filtered.cashTickerDatas = filterCashTickerDatas(bucket.cashTickerDatas, allowedTickerSet);
+  }
+  if (Array.isArray(bucket?.cashFlowTickerDatas)) {
+    filtered.cashFlowTickerDatas = filterCashTickerDatas(bucket.cashFlowTickerDatas, allowedTickerSet);
+  }
+  return filtered;
 }
 
 function getSMDTTickerReply(data) {
@@ -330,10 +393,13 @@ function smdtDevPlugin() {
             const replyKey = CASH_FLOW_TICKER_REPLY_KEYS.find((key) => cashFlowTickerDevCache?.[key]) || "CashFlowTickerReply";
             const reply = getCashFlowTickerReply(cashFlowTickerDevCache) || {};
             const buckets = Array.isArray(reply.cashFlowTickers) ? reply.cashFlowTickers : [];
+            const allowedTickers = await getTotalTradeTickers();
+            const allowedTickerSet = new Set(allowedTickers);
             const out = {
               [replyKey]: {
                 codeReply: reply.codeReply || { codeID: "S0000", codeName: "SUCSESS" },
-                cashFlowTickers: buckets.slice(-limit)
+                allowedTickers,
+                cashFlowTickers: buckets.slice(-limit).map((bucket) => filterCashFlowTickerBucket(bucket, allowedTickerSet))
               }
             };
 

@@ -47,7 +47,7 @@ export function IndustryPicker({ industries, hidden, industrySig, onToggle, onAl
                   <span style={{ width: 18, height: 18, borderRadius: 5, display: "inline-flex", alignItems: "center", justifyContent: "center", background: on ? "var(--B)" : "transparent", border: `1.5px solid ${on ? "var(--B)" : "var(--bdr)"}`, color: "#fff", flexShrink: 0 }}>
                     {on && <i className="ti ti-check" style={{ fontSize: 12 }} />}
                   </span>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: on ? "var(--t1)" : "var(--t2)" }}>{ind}</span>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: on ? "var(--t1)" : "var(--t2)" }}>{ind}</span>
                 </span>
                 <CfBadge sig={industrySig[ind]} small />
               </button>

@@ -3,7 +3,7 @@ import { io } from "socket.io-client";
 
 const API_URL = "/api/cashflow-ticker?limit=150";
 const DEFAULT_REFRESH_MS = 15_000;
-const CACHE_KEY = "cashflow_ticker_data_cache";
+const CACHE_KEY = "cashflow_ticker_data_cache_v3";
 const CHANNELS = ["money-flow-stock"];
 const REPLY_KEYS = ["CashFlowTickerReply", "CashFlowTickerRequest"];
 
@@ -47,7 +47,7 @@ function toNumber(value, fallback = 0) {
 }
 
 function normalizeTicker(item) {
-  const ticker = item?.ticker || item?.code || item?.symbol;
+  const ticker = normalizeTickerCode(item?.ticker || item?.code || item?.symbol);
   if (!ticker) return null;
   return {
     ticker,
@@ -58,24 +58,36 @@ function normalizeTicker(item) {
   };
 }
 
+function normalizeTickerCode(ticker) {
+  return ticker ? String(ticker).trim().toUpperCase() : "";
+}
+
+function getAllowedTickers(data) {
+  const allowedTickers = getReply(data)?.allowedTickers ?? data?.allowedTickers;
+  if (!Array.isArray(allowedTickers)) return [];
+  return allowedTickers.map(normalizeTickerCode).filter(Boolean);
+}
+
 function sortRows(rows) {
   return [...rows].sort((a, b) => a.ticker.localeCompare(b.ticker));
 }
 
 function normalize(reply) {
   const buckets = getReply(reply)?.cashFlowTickers ?? reply?.cashFlowTickers ?? [];
+  const allowedTickers = getAllowedTickers(reply);
+  const allowedTickerSet = allowedTickers.length ? new Set(allowedTickers) : null;
   const normalizedBuckets = buckets
     .map((bucket, index) => {
       const date = getBucketDate(bucket, index);
       const rows = (bucket?.cashTickerDatas ?? bucket?.cashFlowTickerDatas ?? [])
         .map(normalizeTicker)
-        .filter(Boolean);
+        .filter((row) => row && (!allowedTickerSet || allowedTickerSet.has(normalizeTickerCode(row.ticker))));
       return { date, rows: sortRows(rows) };
     })
     .filter((bucket) => bucket.rows.length > 0)
     .sort((a, b) => String(a.date).localeCompare(String(b.date)));
 
-  return { buckets: normalizedBuckets };
+  return { buckets: normalizedBuckets, allowedTickers };
 }
 
 function bucketKey(date, ticker) {
@@ -84,10 +96,15 @@ function bucketKey(date, ticker) {
 
 function mergeTicks(state, ticks) {
   if (ticks.length === 0) return state;
+  const allowedTickerSet = state.allowedTickers?.length ? new Set(state.allowedTickers) : null;
+  const allowedTicks = allowedTickerSet
+    ? ticks.filter((tick) => allowedTickerSet.has(normalizeTickerCode(tick.ticker)))
+    : ticks;
+  if (allowedTicks.length === 0) return state;
 
   const bucketMap = new Map(state.buckets.map((bucket) => [bucket.date, new Map(bucket.rows.map((row) => [row.ticker, row]))]));
 
-  for (const tick of ticks) {
+  for (const tick of allowedTicks) {
     const date = tick.date || state.buckets[state.buckets.length - 1]?.date || new Date().toISOString().slice(0, 10);
     if (!bucketMap.has(date)) bucketMap.set(date, new Map());
     bucketMap.get(date).set(tick.ticker, {
@@ -171,6 +188,7 @@ function getCachedData() {
     if (parsed && Array.isArray(parsed.buckets)) {
       globalCache = {
         buckets: parsed.buckets,
+        allowedTickers: Array.isArray(parsed.allowedTickers) ? parsed.allowedTickers : [],
         updatedAt: parsed.updatedAt ? new Date(parsed.updatedAt) : null,
       };
       return globalCache;
@@ -187,6 +205,7 @@ function setCachedData(data) {
       CACHE_KEY,
       JSON.stringify({
         buckets: data.buckets,
+        allowedTickers: data.allowedTickers || [],
         updatedAt: data.updatedAt ? data.updatedAt.toISOString() : null,
       })
     );
@@ -200,7 +219,9 @@ export function useCashFlowTicker() {
   const realtimeTouchedRef = useRef(new Map());
   const cached = getCachedData();
 
-  const [state, setState] = useState(() => (cached ? { buckets: cached.buckets } : { buckets: [] }));
+  const [state, setState] = useState(() =>
+    cached ? { buckets: cached.buckets, allowedTickers: cached.allowedTickers || [] } : { buckets: [], allowedTickers: [] }
+  );
   const [status, setStatus] = useState(() => (cached ? "ready" : "loading"));
   const [error, setError] = useState(null);
   const [updatedAt, setUpdatedAt] = useState(() => cached?.updatedAt || null);
@@ -267,8 +288,11 @@ export function useCashFlowTicker() {
     const ticks = extractRealtimeTicks(payload);
     if (ticks.length === 0) return;
     const now = new Date();
+    const allowedTickerSet = state.allowedTickers?.length ? new Set(state.allowedTickers) : null;
+    if (!allowedTickerSet) return;
 
     for (const row of ticks) {
+      if (!allowedTickerSet.has(normalizeTickerCode(row.ticker))) continue;
       const date = row.date || state.buckets[state.buckets.length - 1]?.date || new Date().toISOString().slice(0, 10);
       realtimeTouchedRef.current.set(bucketKey(date, row.ticker), { row: { ...row, date }, at: now.getTime() });
     }
@@ -283,7 +307,7 @@ export function useCashFlowTicker() {
     setUpdatedAt(now);
     setStatus("ready");
     setError(null);
-  }, [state.buckets]);
+  }, [state.allowedTickers, state.buckets]);
 
   const latest = state.buckets[state.buckets.length - 1] || null;
   return { ...state, latest, status, error, updatedAt, refresh: () => fetchSnapshot({ force: true }), applyTick };

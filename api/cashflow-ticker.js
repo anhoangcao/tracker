@@ -1,6 +1,9 @@
 let serverCache = null;
 let lastFetched = 0;
+let totalTradeTickerCache = null;
+let totalTradeLastFetched = 0;
 const CACHE_DURATION = 3 * 1000;
+const TOTAL_TRADE_CACHE_DURATION = 5 * 60 * 1000;
 const API_ACCOUNT = "thao.dtt";
 const REPLY_KEYS = ["CashFlowTickerReply", "CashFlowTickerRequest"];
 
@@ -37,15 +40,85 @@ async function fetchCashFlowTickerFromSource() {
   return data;
 }
 
-function sliceReply(data, limit) {
+async function fetchTotalTradeTickersFromSource() {
+  const response = await fetch("https://stocktraders.vn/service/data/getTotalTrade", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ TotalTradeRequest: { account: API_ACCOUNT } }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`TotalTrade API returned status ${response.status}`);
+  }
+
+  const data = await response.json();
+  const reply = data?.TotalTradeReply || data?.TotalTradeRequest || {};
+  const code = reply?.codeReply?.codeID;
+  const stockTotals = reply?.stockTotals;
+
+  if (code && code !== "S0000") {
+    throw new Error(`TotalTrade API response code ${code}`);
+  }
+  if (!Array.isArray(stockTotals)) {
+    throw new Error("TotalTrade API response missing stockTotals");
+  }
+
+  return stockTotals
+    .map((item) => item?.ticker || item?.code || item?.symbol)
+    .filter(Boolean)
+    .map((ticker) => String(ticker).trim().toUpperCase());
+}
+
+async function getTotalTradeTickers() {
+  const now = Date.now();
+  if (!totalTradeTickerCache || now - totalTradeLastFetched > TOTAL_TRADE_CACHE_DURATION) {
+    try {
+      totalTradeTickerCache = await fetchTotalTradeTickersFromSource();
+      totalTradeLastFetched = now;
+    } catch (error) {
+      console.error("Failed to refresh total trade ticker cache from source:", error);
+      if (!totalTradeTickerCache) throw error;
+    }
+  }
+  return totalTradeTickerCache;
+}
+
+function filterCashTickerDatas(datas, allowedTickerSet) {
+  if (!Array.isArray(datas)) return [];
+  return datas
+    .filter((item) => {
+      const ticker = item?.ticker || item?.code || item?.symbol;
+      return ticker && allowedTickerSet.has(String(ticker).trim().toUpperCase());
+    })
+    .map((item) => {
+      const ticker = item?.ticker || item?.code || item?.symbol;
+      const normalizedTicker = String(ticker || "").trim().toUpperCase();
+      return { ...item, ticker: normalizedTicker };
+    });
+}
+
+function filterBucket(bucket, allowedTickerSet) {
+  const filtered = { ...bucket };
+  if (Array.isArray(bucket?.cashTickerDatas)) {
+    filtered.cashTickerDatas = filterCashTickerDatas(bucket.cashTickerDatas, allowedTickerSet);
+  }
+  if (Array.isArray(bucket?.cashFlowTickerDatas)) {
+    filtered.cashFlowTickerDatas = filterCashTickerDatas(bucket.cashFlowTickerDatas, allowedTickerSet);
+  }
+  return filtered;
+}
+
+function sliceReply(data, limit, allowedTickers) {
   const replyKey = REPLY_KEYS.find((key) => data?.[key]) || "CashFlowTickerReply";
   const sourceReply = getReply(data) || {};
   const buckets = Array.isArray(sourceReply.cashFlowTickers) ? sourceReply.cashFlowTickers : [];
+  const allowedTickerSet = new Set(allowedTickers);
 
   return {
     [replyKey]: {
       codeReply: sourceReply.codeReply || { codeID: "S0000", codeName: "SUCSESS" },
-      cashFlowTickers: buckets.slice(-limit),
+      allowedTickers,
+      cashFlowTickers: buckets.slice(-limit).map((bucket) => filterBucket(bucket, allowedTickerSet)),
     },
   };
 }
@@ -82,8 +155,9 @@ export default async function handler(req, res) {
   }
 
   try {
-    return res.status(200).json(sliceReply(serverCache, limit));
+    const allowedTickers = await getTotalTradeTickers();
+    return res.status(200).json(sliceReply(serverCache, limit, allowedTickers));
   } catch (error) {
-    return res.status(500).json({ error: "Failed to process sliced data", details: error.message });
+    return res.status(500).json({ error: "Failed to process filtered data", details: error.message });
   }
 }
