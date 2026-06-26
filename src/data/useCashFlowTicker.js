@@ -4,7 +4,7 @@ import { io } from "socket.io-client";
 const API_BASE_URL = "/api/cashflow-ticker";
 const FULL_LIMIT = 150;
 const INITIAL_LIMIT = 25;
-const PERSIST_LIMIT = 25;
+const PERSIST_LIMIT = FULL_LIMIT;
 const DEFAULT_REFRESH_MS = 15_000;
 const CACHE_KEY = "cashflow_ticker_data_cache_v4";
 const LEGACY_CACHE_KEYS = ["cashflow_ticker_data_cache_v3"];
@@ -322,10 +322,9 @@ export function useCashFlowTicker() {
     if (ticks.length === 0) return;
     const now = new Date();
     const allowedTickerSet = state.allowedTickers?.length ? new Set(state.allowedTickers) : null;
-    if (!allowedTickerSet) return;
 
     for (const row of ticks) {
-      if (!allowedTickerSet.has(normalizeTickerCode(row.ticker))) continue;
+      if (allowedTickerSet && !allowedTickerSet.has(normalizeTickerCode(row.ticker))) continue;
       const date = row.date || state.buckets[state.buckets.length - 1]?.date || new Date().toISOString().slice(0, 10);
       realtimeTouchedRef.current.set(bucketKey(date, row.ticker), { row: { ...row, date }, at: now.getTime() });
     }

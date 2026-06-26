@@ -13,6 +13,7 @@ let cashFlowTickerDevLastFetched = 0;
 let cashFlowTickerDevRefreshPromise = null;
 let totalTradeTickerDevCache = null;
 let totalTradeTickerDevLastFetched = 0;
+let totalTradeTickerDevRefreshPromise = null;
 let smdtTickerDevCache = null;
 let smdtTickerDevLastFetched = 0;
 let branchPathDevCache = null;
@@ -113,18 +114,29 @@ async function fetchTotalTradeTickersFromSource() {
     .map((ticker) => String(ticker).trim().toUpperCase());
 }
 
-async function getTotalTradeTickers() {
+function getTotalTradeTickersFast() {
   const now = Date.now();
-  if (!totalTradeTickerDevCache || (now - totalTradeTickerDevLastFetched > TOTAL_TRADE_CACHE_DURATION)) {
-    try {
-      totalTradeTickerDevCache = await fetchTotalTradeTickersFromSource();
-      totalTradeTickerDevLastFetched = now;
-    } catch (err) {
-      console.error("Local dev total trade ticker proxy fetch error:", err);
-      if (!totalTradeTickerDevCache) throw err;
-    }
+  if (totalTradeTickerDevCache && (now - totalTradeTickerDevLastFetched <= TOTAL_TRADE_CACHE_DURATION)) {
+    return totalTradeTickerDevCache;
   }
-  return totalTradeTickerDevCache;
+
+  if (!totalTradeTickerDevRefreshPromise) {
+    totalTradeTickerDevRefreshPromise = fetchTotalTradeTickersFromSource()
+      .then((tickers) => {
+        totalTradeTickerDevCache = tickers;
+        totalTradeTickerDevLastFetched = Date.now();
+        return tickers;
+      })
+      .catch((err) => {
+        console.error("Local dev total trade ticker proxy fetch error:", err);
+        return totalTradeTickerDevCache || [];
+      })
+      .finally(() => {
+        totalTradeTickerDevRefreshPromise = null;
+      });
+  }
+
+  return totalTradeTickerDevCache || [];
 }
 
 function filterCashTickerDatas(datas, allowedTickerSet) {
@@ -412,13 +424,13 @@ function smdtDevPlugin() {
             const replyKey = CASH_FLOW_TICKER_REPLY_KEYS.find((key) => cashFlowTickerDevCache?.[key]) || "CashFlowTickerReply";
             const reply = getCashFlowTickerReply(cashFlowTickerDevCache) || {};
             const buckets = Array.isArray(reply.cashFlowTickers) ? reply.cashFlowTickers : [];
-            const allowedTickers = await getTotalTradeTickers();
+            const allowedTickers = getTotalTradeTickersFast();
             const allowedTickerSet = new Set(allowedTickers);
             const out = {
               [replyKey]: {
                 codeReply: reply.codeReply || { codeID: "S0000", codeName: "SUCSESS" },
                 allowedTickers,
-                cashFlowTickers: buckets.slice(-limit).map((bucket) => filterCashFlowTickerBucket(bucket, allowedTickerSet))
+                cashFlowTickers: allowedTickerSet.size > 0 ? buckets.slice(-limit).map((bucket) => filterCashFlowTickerBucket(bucket, allowedTickerSet)) : buckets.slice(-limit)
               }
             };
 

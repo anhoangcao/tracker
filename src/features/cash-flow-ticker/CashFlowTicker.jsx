@@ -326,10 +326,6 @@ export function ModDongTienCP() {
         </button>
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
-        <span style={{ fontSize: 11, color: "var(--t4)", fontWeight: 600 }}>{fmtNum(activeTickers)} mã</span>
-      </div>
-
       <Card noPad>
         <CashFlowMatrixTable
           collapsedInd={collapsedInd}

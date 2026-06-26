@@ -3,6 +3,7 @@ let lastFetched = 0;
 let refreshPromise = null;
 let totalTradeTickerCache = null;
 let totalTradeLastFetched = 0;
+let totalTradeRefreshPromise = null;
 const CACHE_DURATION = 3 * 1000;
 const TOTAL_TRADE_CACHE_DURATION = 5 * 60 * 1000;
 const API_ACCOUNT = "thao.dtt";
@@ -91,18 +92,29 @@ async function fetchTotalTradeTickersFromSource() {
     .map((ticker) => String(ticker).trim().toUpperCase());
 }
 
-async function getTotalTradeTickers() {
+function getTotalTradeTickersFast() {
   const now = Date.now();
-  if (!totalTradeTickerCache || now - totalTradeLastFetched > TOTAL_TRADE_CACHE_DURATION) {
-    try {
-      totalTradeTickerCache = await fetchTotalTradeTickersFromSource();
-      totalTradeLastFetched = now;
-    } catch (error) {
-      console.error("Failed to refresh total trade ticker cache from source:", error);
-      if (!totalTradeTickerCache) throw error;
-    }
+  if (totalTradeTickerCache && now - totalTradeLastFetched <= TOTAL_TRADE_CACHE_DURATION) {
+    return totalTradeTickerCache;
   }
-  return totalTradeTickerCache;
+
+  if (!totalTradeRefreshPromise) {
+    totalTradeRefreshPromise = fetchTotalTradeTickersFromSource()
+      .then((tickers) => {
+        totalTradeTickerCache = tickers;
+        totalTradeLastFetched = Date.now();
+        return tickers;
+      })
+      .catch((error) => {
+        console.error("Failed to refresh total trade ticker cache from source:", error);
+        return totalTradeTickerCache || [];
+      })
+      .finally(() => {
+        totalTradeRefreshPromise = null;
+      });
+  }
+
+  return totalTradeTickerCache || [];
 }
 
 function filterCashTickerDatas(datas, allowedTickerSet) {
@@ -135,12 +147,13 @@ function sliceReply(data, limit, allowedTickers) {
   const sourceReply = getReply(data) || {};
   const buckets = Array.isArray(sourceReply.cashFlowTickers) ? sourceReply.cashFlowTickers : [];
   const allowedTickerSet = new Set(allowedTickers);
+  const useAllowedFilter = allowedTickerSet.size > 0;
 
   return {
     [replyKey]: {
       codeReply: sourceReply.codeReply || { codeID: "S0000", codeName: "SUCSESS" },
       allowedTickers,
-      cashFlowTickers: buckets.slice(-limit).map((bucket) => filterBucket(bucket, allowedTickerSet)),
+      cashFlowTickers: useAllowedFilter ? buckets.slice(-limit).map((bucket) => filterBucket(bucket, allowedTickerSet)) : buckets.slice(-limit),
     },
   };
 }
@@ -175,7 +188,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const allowedTickers = await getTotalTradeTickers();
+    const allowedTickers = getTotalTradeTickersFast();
     return res.status(200).json(sliceReply(serverCache, limit, allowedTickers));
   } catch (error) {
     return res.status(500).json({ error: "Failed to process filtered data", details: error.message });
