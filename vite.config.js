@@ -10,10 +10,13 @@ let cashFlowDevCache = null;
 let cashFlowDevLastFetched = 0;
 let cashFlowTickerDevCache = null;
 let cashFlowTickerDevLastFetched = 0;
+let smdtTickerDevCache = null;
+let smdtTickerDevLastFetched = 0;
 const CACHE_DURATION = 3 * 1000; // Realtime là đường chính; proxy chỉ phục vụ snapshot ban đầu + lưới dự phòng, giữ ngắn để tươi.
 const API_ACCOUNT = "thao.dtt";
 const STOCK_WAVE_REPLY_KEYS = ["StockWaveReply", "StockWaveRequest"];
 const CASH_FLOW_TICKER_REPLY_KEYS = ["CashFlowTickerReply", "CashFlowTickerRequest"];
+const SMDT_TICKER_REPLY_KEYS = ["SMDTTickerReply", "SMDTTickerRequest"];
 
 async function fetchStockWaveFromSource() {
   const payload = { StockWaveRequest: { account: API_ACCOUNT } };
@@ -52,6 +55,15 @@ function getCashFlowTickerReply(data) {
   return null;
 }
 
+function getSMDTTickerReply(data) {
+  for (const key of SMDT_TICKER_REPLY_KEYS) {
+    if (data?.[key]) {
+      return data[key];
+    }
+  }
+  return null;
+}
+
 function smdtDevPlugin() {
   return {
     name: "smdt-dev-plugin",
@@ -59,7 +71,65 @@ function smdtDevPlugin() {
       server.middlewares.use(async (req, res, next) => {
         // Parse request URL
         const reqUrl = req.url || "";
-        if (reqUrl.startsWith("/api/smdt")) {
+        if (reqUrl.startsWith("/api/smdt-ticker")) {
+          const host = req.headers.host || "localhost:3000";
+          const parsedUrl = new URL(reqUrl, `http://${host}`);
+          const limitParam = parsedUrl.searchParams.get("limit");
+          let limit = parseInt(limitParam || "150", 10);
+          if (isNaN(limit) || limit <= 0) {
+            limit = 150;
+          }
+
+          const now = Date.now();
+          if (!smdtTickerDevCache || (now - smdtTickerDevLastFetched > CACHE_DURATION)) {
+            try {
+              const response = await fetch("https://stocktraders.vn/service/data/getSMDTTicker", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ SMDTTickerRequest: { account: API_ACCOUNT } })
+              });
+              if (!response.ok) throw new Error(`HTTP ${response.status}`);
+              const data = await response.json();
+              const reply = getSMDTTickerReply(data);
+              const code = reply?.codeReply?.codeID;
+              if (code && code !== "S0000") throw new Error(`API response code ${code}`);
+              smdtTickerDevCache = data;
+              smdtTickerDevLastFetched = now;
+            } catch (err) {
+              console.error("Local dev smdt ticker proxy fetch error:", err);
+              if (!smdtTickerDevCache) {
+                res.statusCode = 502;
+                res.setHeader("Content-Type", "application/json");
+                res.end(JSON.stringify({ error: err.message }));
+                return;
+              }
+            }
+          }
+
+          try {
+            const replyKey = SMDT_TICKER_REPLY_KEYS.find((key) => smdtTickerDevCache?.[key]) || "SMDTTickerReply";
+            const reply = getSMDTTickerReply(smdtTickerDevCache) || {};
+            const datas = Array.isArray(reply.SMDTDatas) ? reply.SMDTDatas : [];
+            const out = {
+              [replyKey]: {
+                codeReply: reply.codeReply || { codeID: "S0000", codeName: "SUCSESS" },
+                SMDTDatas: datas.map((item) => ({
+                  ...item,
+                  smdts: Array.isArray(item.smdts) ? item.smdts.slice(-limit) : []
+                }))
+              }
+            };
+
+            res.statusCode = 200;
+            res.setHeader("Content-Type", "application/json");
+            res.setHeader("Cache-Control", "no-store, max-age=0");
+            res.end(JSON.stringify(out));
+          } catch (err) {
+            res.statusCode = 500;
+            res.setHeader("Content-Type", "application/json");
+            res.end(JSON.stringify({ error: err.message }));
+          }
+        } else if (reqUrl.startsWith("/api/smdt")) {
           const host = req.headers.host || "localhost:3000";
           const parsedUrl = new URL(reqUrl, `http://${host}`);
           const limitParam = parsedUrl.searchParams.get("limit");
@@ -261,6 +331,123 @@ function smdtDevPlugin() {
               [replyKey]: {
                 codeReply: reply.codeReply || { codeID: "S0000", codeName: "SUCSESS" },
                 cashFlowTickers: buckets.slice(-limit)
+              }
+            };
+
+            res.statusCode = 200;
+            res.setHeader("Content-Type", "application/json");
+            res.setHeader("Cache-Control", "no-store, max-age=0");
+            res.end(JSON.stringify(out));
+          } catch (err) {
+            res.statusCode = 500;
+            res.setHeader("Content-Type", "application/json");
+            res.end(JSON.stringify({ error: err.message }));
+          }
+        } else if (reqUrl.startsWith("/api/smdt-ticker")) {
+          const host = req.headers.host || "localhost:3000";
+          const parsedUrl = new URL(reqUrl, `http://${host}`);
+          const limitParam = parsedUrl.searchParams.get("limit");
+          let limit = parseInt(limitParam || "150", 10);
+          if (isNaN(limit) || limit <= 0) {
+            limit = 150;
+          }
+
+          const now = Date.now();
+          if (!smdtTickerDevCache || (now - smdtTickerDevLastFetched > CACHE_DURATION)) {
+            try {
+              const response = await fetch("https://stocktraders.vn/service/data/getSMDTTicker", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ SMDTTickerRequest: { account: API_ACCOUNT } })
+              });
+              if (!response.ok) throw new Error(`HTTP ${response.status}`);
+              const data = await response.json();
+              const reply = getSMDTTickerReply(data);
+              const code = reply?.codeReply?.codeID;
+              if (code && code !== "S0000") throw new Error(`API response code ${code}`);
+              smdtTickerDevCache = data;
+              smdtTickerDevLastFetched = now;
+            } catch (err) {
+              console.error("Local dev smdt ticker proxy fetch error:", err);
+              if (!smdtTickerDevCache) {
+                res.statusCode = 502;
+                res.setHeader("Content-Type", "application/json");
+                res.end(JSON.stringify({ error: err.message }));
+                return;
+              }
+            }
+          }
+
+          try {
+            const replyKey = SMDT_TICKER_REPLY_KEYS.find((key) => smdtTickerDevCache?.[key]) || "SMDTTickerReply";
+            const reply = getSMDTTickerReply(smdtTickerDevCache) || {};
+            const datas = Array.isArray(reply.SMDTDatas) ? reply.SMDTDatas : [];
+            const out = {
+              [replyKey]: {
+                codeReply: reply.codeReply || { codeID: "S0000", codeName: "SUCSESS" },
+                // Mỗi cổ phiếu có chuỗi smdts theo ngày; slice giữ `limit` phiên gần nhất.
+                SMDTDatas: datas.map((d) => ({
+                  ...d,
+                  smdts: Array.isArray(d.smdts) ? d.smdts.slice(-limit) : []
+                }))
+              }
+            };
+
+            res.statusCode = 200;
+            res.setHeader("Content-Type", "application/json");
+            res.setHeader("Cache-Control", "no-store, max-age=0");
+            res.end(JSON.stringify(out));
+          } catch (err) {
+            res.statusCode = 500;
+            res.setHeader("Content-Type", "application/json");
+            res.end(JSON.stringify({ error: err.message }));
+          }
+        } else if (reqUrl.startsWith("/api/smdt-ticker")) {
+          const host = req.headers.host || "localhost:3000";
+          const parsedUrl = new URL(reqUrl, `http://${host}`);
+          const limitParam = parsedUrl.searchParams.get("limit");
+          let limit = parseInt(limitParam || "150", 10);
+          if (isNaN(limit) || limit <= 0) {
+            limit = 150;
+          }
+
+          const now = Date.now();
+          if (!smdtTickerDevCache || (now - smdtTickerDevLastFetched > CACHE_DURATION)) {
+            try {
+              const response = await fetch("https://stocktraders.vn/service/data/getSMDTTicker", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ SMDTTickerRequest: { account: API_ACCOUNT } })
+              });
+              if (!response.ok) throw new Error(`HTTP ${response.status}`);
+              const data = await response.json();
+              const reply = getSMDTTickerReply(data);
+              const code = reply?.codeReply?.codeID;
+              if (code && code !== "S0000") throw new Error(`API response code ${code}`);
+              smdtTickerDevCache = data;
+              smdtTickerDevLastFetched = now;
+            } catch (err) {
+              console.error("Local dev SMDT ticker proxy fetch error:", err);
+              if (!smdtTickerDevCache) {
+                res.statusCode = 502;
+                res.setHeader("Content-Type", "application/json");
+                res.end(JSON.stringify({ error: err.message }));
+                return;
+              }
+            }
+          }
+
+          try {
+            const replyKey = SMDT_TICKER_REPLY_KEYS.find((key) => smdtTickerDevCache?.[key]) || "SMDTTickerReply";
+            const reply = getSMDTTickerReply(smdtTickerDevCache) || {};
+            const datas = Array.isArray(reply.SMDTDatas) ? reply.SMDTDatas : [];
+            const out = {
+              [replyKey]: {
+                codeReply: reply.codeReply || { codeID: "S0000", codeName: "SUCSESS" },
+                SMDTDatas: datas.map((item) => ({
+                  ...item,
+                  smdts: Array.isArray(item.smdts) ? item.smdts.slice(-limit) : []
+                }))
               }
             };
 

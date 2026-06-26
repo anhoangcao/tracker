@@ -4,6 +4,7 @@ import { mono, valToHmCls } from "../styles/tokens";
 import { useSMDT, useRealtimeFeed } from "../data/useSMDT";
 import { useCashFlowBranch, useRealtimeCashFlowFeed, contentToSig } from "../data/useCashFlowBranch";
 import { useCashFlowTicker, useRealtimeCashFlowTickerFeed, tickerContentToSig } from "../data/useCashFlowTicker";
+import { useSMDTTicker, useRealtimeSMDTTickerFeed } from "../data/useSMDTTicker";
 import { useStockWave, useRealtimeStockWaveFeed } from "../data/useStockWave";
 import {
   Card, CardHeader, Clink, FilterChips, SearchBox, TableWrap, THead, Pagination,
@@ -21,8 +22,8 @@ export const MODULES = {
   "dong-tien-nganh": { title: "Dòng tiền ngành",     sub: "Chủ lực 6 ngành — theo dõi vào/ra theo ngày" },
   "smdt-nganh":      { title: "SMDT ngành",          sub: "Sức mạnh dòng tiền theo ngành · Heatmap" },
   "dong-tien-cp":    { title: "Dòng tiền cổ phiếu",  sub: "Tín hiệu từng mã — theo dõi nhiều phiên" },
-  "smdt-ma":         { title: "SMDT mã",             sub: "Ngân hàng — SMDT từng mã theo ngày" },
-  "top-manh":        { title: "Top cổ phiếu mạnh",   sub: "SMDT mã ≥ 70%" },
+  "smdt-ma":         { title: "SMDT cổ phiếu",       sub: "SMDT từng cổ phiếu theo ngày · realtime" },
+  "top-manh":        { title: "Top cổ phiếu mạnh",   sub: "SMDT cổ phiếu ≥ 70%" },
   "stock-wave":      { title: "Sóng cổ phiếu",       sub: "Dữ liệu thật từ getStockWave · realtime" },
   "do-song":         { title: "Sóng cổ phiếu",       sub: "Dữ liệu thật từ getStockWave · realtime" },
 };
@@ -346,7 +347,7 @@ function ModSMDTNganh() {
   const { branches, datesAsc, matrix, status, error, updatedAt, refresh, applyTick } = useSMDT();
   const { connected: live } = useRealtimeFeed(applyTick);
 
-  const [tab, setTab] = useState("core");
+  const [tab, setTab] = useState("all");
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
   const [sessions, setSessions] = useState(25);
@@ -357,7 +358,7 @@ function ModSMDTNganh() {
   const visibleBranches = useMemo(() => {
     const q = query.trim().toLowerCase();
     return branches
-      .filter((b) => (tab === "core" ? b.isCore : !b.isCore))
+      .filter((b) => (tab === "all" ? true : tab === "core" ? b.isCore : !b.isCore))
       .filter((b) => (q ? b.label.toLowerCase().includes(q) : true));
   }, [branches, tab, query]);
 
@@ -373,7 +374,11 @@ function ModSMDTNganh() {
     <div>
       <div style={{ display: "flex", alignItems: "center", gap: 13, flexWrap: "wrap", marginBottom: 16 }}>
         <SMDTFilterChips
-          options={[{ id: "core", label: `Chủ lực ${coreCount || ""}`.trim() }, { id: "sub", label: `Ngành phụ ${subCount || ""}`.trim() }]}
+          options={[
+            { id: "all", label: `Tất cả ${branches.length || ""}`.trim() },
+            { id: "core", label: `Chủ lực ${coreCount || ""}`.trim() },
+            { id: "sub", label: `Ngành phụ ${subCount || ""}`.trim() },
+          ]}
           active={tab}
           onChange={(v) => { setTab(v); setPage(1); }}
         />
@@ -811,6 +816,20 @@ function ModDongTienCP() {
   const [query, setQuery] = useState("");
 
   const rows = latest?.rows || [];
+  const tickerPool = useMemo(() => {
+    const seen = new Map();
+    for (const bucket of buckets) {
+      for (const row of bucket.rows || []) {
+        if (!seen.has(row.ticker)) seen.set(row.ticker, { ticker: row.ticker, type: row.type || "" });
+      }
+    }
+    return [...seen.values()].sort((a, b) => a.ticker.localeCompare(b.ticker));
+  }, [buckets]);
+  const latestByTicker = useMemo(() => {
+    const map = new Map();
+    for (const row of rows) map.set(row.ticker, row);
+    return map;
+  }, [rows]);
   const counts = rows.reduce(
     (acc, row) => {
       acc.total += 1;
@@ -820,11 +839,17 @@ function ModDongTienCP() {
     { total: 0 }
   );
 
-  const filteredRows = rows
-    .filter((row) => (filter === "all" ? true : tickerContentToSig(row.content) === filter))
-    .filter((row) => (query.trim() ? row.ticker.toLowerCase().includes(query.trim().toLowerCase()) : true));
+  const filteredTickers = tickerPool
+    .filter((row) => {
+      const content = latestByTicker.get(row.ticker)?.content || "";
+      return filter === "all" ? true : tickerContentToSig(content) === filter;
+    })
+    .filter((row) => {
+      const q = query.trim().toLowerCase();
+      return q ? row.ticker.toLowerCase().includes(q) : true;
+    });
 
-  const visibleTickers = filteredRows.map((row) => row.ticker);
+  const visibleTickers = filteredTickers.map((row) => row.ticker);
   const datesDesc = [...buckets].reverse();
   const matrix = useMemo(() => {
     const map = {};
@@ -836,6 +861,10 @@ function ModDongTienCP() {
     }
     return map;
   }, [buckets]);
+  const latestDate = latest?.date || datesDesc[0]?.date || null;
+  const rangeLabel = datesDesc.length ? `${fmtDay(datesDesc[datesDesc.length - 1].date)} → ${fmtDay(datesDesc[0].date)}` : "—";
+  const activeTickers = filteredTickers.length;
+  const totalTickers = tickerPool.length;
 
   if (status === "loading" && !rows.length) return <Banner>Đang tải dữ liệu dòng tiền cổ phiếu…</Banner>;
   if (status === "error" && !rows.length)
@@ -844,30 +873,33 @@ function ModDongTienCP() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <div style={{ display: "grid", gridTemplateColumns: narrow ? "1fr 1fr" : "repeat(4,1fr)", gap: 10 }}>
-        <StatCard label="Tiếp tục đổ vào" val={fmtNum(counts["Tiếp tục đổ vào"] || 0)} sub="Từ API getCashFlowTicker" colorKey="G" />
-        <StatCard label="Nhen nhóm đổ vào" val={fmtNum(counts["Nhen nhóm đổ vào"] || 0)} sub={latest ? `Phiên ${latest.date}` : ""} colorKey="B" />
-        <StatCard label="Đang thoát ra" val={fmtNum(counts["Đang thoát ra"] || 0)} sub={`${fmtNum(counts.total)} mã`} colorKey="A" />
-        <StatCard label="Tiếp tục thoát ra" val={fmtNum(counts["Tiếp tục thoát ra"] || 0)} sub={`${fmtNum(buckets.length)} phiên`} colorKey="R" />
+        <StatCard label="Tất cả mã" val={fmtNum(totalTickers)} sub={latestDate ? `Phiên ${fmtFull(latestDate)}` : "Từ API getCashFlowTicker"} colorKey="B" />
+        <StatCard label="Tiếp tục đổ vào" val={fmtNum(counts["Tiếp tục đổ vào"] || 0)} sub={rangeLabel} colorKey="G" />
+        <StatCard label="Đang thoát ra" val={fmtNum(counts["Đang thoát ra"] || 0)} sub={`${fmtNum(counts.total)} mã ở phiên mới nhất`} colorKey="A" />
+        <StatCard label="Tiếp tục thoát ra" val={fmtNum(counts["Tiếp tục thoát ra"] || 0)} sub={`${fmtNum(buckets.length)} phiên dữ liệu`} colorKey="R" />
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 13, flexWrap: "wrap" }}>
-        <InlineFilterChips
-          options={[
-            { id: "all", label: `Tất cả ${counts.total || ""}`.trim() },
-            { id: "si", label: "Tiếp tục đổ vào" },
-            { id: "sn", label: "Nhen nhóm" },
-            { id: "so", label: "Đang thoát ra" },
-            { id: "st", label: "Tiếp tục thoát" },
-          ]}
-          active={filter}
-          onChange={setFilter}
-        />
+      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", justifyContent: "space-between" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <InlineFilterChips
+            options={[
+              { id: "all", label: `Tất cả ${fmtNum(totalTickers)}` },
+              { id: "si", label: "Tiếp tục đổ vào" },
+              { id: "sn", label: "Nhen nhóm" },
+              { id: "so", label: "Đang thoát ra" },
+              { id: "st", label: "Tiếp tục thoát" },
+            ]}
+            active={filter}
+            onChange={setFilter}
+          />
+          <span style={{ fontSize: 11, color: "var(--t4)", whiteSpace: "nowrap" }}>{fmtNum(activeTickers)} mã đang hiển thị</span>
+        </div>
         <SearchBox placeholder="Tìm mã..." value={query} onChange={(e) => setQuery(e.target.value)} />
       </div>
 
       <Card noPad>
         <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, minWidth: Math.max(760, 150 + visibleTickers.length * 132) }}>
+          <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, minWidth: Math.max(760, 150 + visibleTickers.length * 128) }}>
             <thead>
               <tr>
                 <th style={{ ...cashFlowMatrixTh, position: "sticky", left: 0, zIndex: 3, width: 150, textAlign: "left" }}>DATE ↓</th>
@@ -894,18 +926,26 @@ function ModDongTienCP() {
           </table>
         </div>
       </Card>
-      <LiveFooter live={live} updatedAt={updatedAt} extra={`${fmtNum(filteredRows.length)} / ${fmtNum(rows.length)} mã · channel money-flow-stock`} />
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          {["si", "sn", "so", "st"].map((s) => <Sig key={s} type={s} />)}
+        </div>
+        <div style={{ fontSize: 11, color: "var(--t4)" }}>
+          channel <span style={{ color: "var(--t2)", fontWeight: 700 }}>money-flow-stock</span>
+        </div>
+      </div>
+      <LiveFooter live={live} updatedAt={updatedAt} extra={`${fmtNum(activeTickers)} / ${fmtNum(totalTickers)} mã · ${datesDesc.length} phiên`} />
     </div>
   );
 }
 
 const cashFlowMatrixTh = {
-  fontSize: 12,
+  fontSize: 11,
   fontWeight: 800,
-  color: "var(--t1)",
+  color: "var(--t3)",
   textTransform: "uppercase",
-  letterSpacing: ".02em",
-  padding: "16px 22px",
+  letterSpacing: ".08em",
+  padding: "14px 18px",
   borderBottom: "0.5px solid var(--bdr)",
   borderRight: "0.5px solid var(--bdrs)",
   background: "var(--elev)",
@@ -914,8 +954,8 @@ const cashFlowMatrixTh = {
 };
 
 const cashFlowMatrixDateTd = {
-  padding: "16px 22px",
-  fontSize: 13,
+  padding: "15px 18px",
+  fontSize: 12,
   fontWeight: 800,
   color: "var(--t1)",
   borderBottom: "0.5px solid var(--bdrs)",
@@ -925,7 +965,7 @@ const cashFlowMatrixDateTd = {
 };
 
 const cashFlowMatrixTd = {
-  padding: "12px 16px",
+  padding: "10px 12px",
   textAlign: "center",
   borderBottom: "0.5px solid var(--bdrs)",
   borderRight: "0.5px solid var(--bdrs)",
@@ -944,56 +984,119 @@ function CashFlowTickerCell({ content }) {
 
   if (!s) {
     return (
-      <span style={{ display: "inline-flex", minWidth: 86, height: 22, alignItems: "center", justifyContent: "center", borderRadius: 6, background: "rgba(92,112,144,.12)", color: "var(--t3)", fontSize: 12, fontWeight: 700 }}>
+      <span style={{ display: "inline-flex", minWidth: 92, height: 24, alignItems: "center", justifyContent: "center", borderRadius: 6, background: "rgba(92,112,144,.12)", color: "var(--t3)", fontSize: 11, fontWeight: 700 }}>
         -
       </span>
     );
   }
 
   return (
-    <span style={{ display: "inline-flex", minWidth: 104, height: 24, alignItems: "center", justifyContent: "center", borderRadius: 6, background: s.bg, color: s.color, fontSize: 12, fontWeight: 800, whiteSpace: "nowrap" }}>
+    <span style={{ display: "inline-flex", minWidth: 108, height: 24, alignItems: "center", justifyContent: "center", borderRadius: 6, background: s.bg, color: s.color, fontSize: 11, fontWeight: 800, whiteSpace: "nowrap" }}>
       {s.label}
     </span>
   );
 }
 
-const SMDT_MA_ROWS = [
-  ["31/12/24", "100", "70", "70", "neg", "70", "70", "70", "70", "50", "◑"],
-  ["02/01/25", "70", "70", "70", "neg", "70", "70", "70", "70", "70", "◑"],
-  ["29/04/25", "100", "70", "70", "70", "70", "70", "70", "70", "70", "●"],
-  ["05/05/25", "100", "100", "100", "70", "70", "100", "100", "70", "70", "●"],
-  ["06/05/25", "100", "100", "100", "70", "70", "100", "100", "70", "70", "●"],
-  ["07/05/25", "100", "100", "100", "70", "70", "100", "100", "70", "70", "●"],
-];
-
+/* ═══════════════════════════ SMDT CỔ PHIẾU (REAL) ═════════════════════════ */
 function ModSMDTMa() {
-  const { t } = useTheme();
-  const thMa = ["ACB", "TCB", "MBB", "VCB", "CTG", "BID", "VPB", "HDB", "STB"];
-  const td = { textAlign: "center", padding: "5px 6px", borderBottom: "0.5px solid var(--bdrs)" };
+  const { tickers, datesAsc, matrix, status, error, updatedAt, refresh, applyTick } = useSMDTTicker();
+  const { connected: live } = useRealtimeSMDTTickerFeed(applyTick);
+
+  const [query, setQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const [sessions, setSessions] = useState(25);
+
+  const visibleTickers = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return tickers.filter((tk) => (q ? tk.key.toLowerCase().includes(q) || tk.name.toLowerCase().includes(q) : true));
+  }, [tickers, query]);
+
+  const datesDesc = useMemo(() => [...datesAsc].reverse(), [datesAsc]);
+  const totalPages = Math.max(1, Math.ceil(datesDesc.length / sessions));
+  const safePage = Math.min(page, totalPages);
+  const pageDates = datesDesc.slice((safePage - 1) * sessions, safePage * sessions);
+  const rangeLabel = pageDates.length ? `${fmtFull(pageDates[pageDates.length - 1])} → ${fmtFull(pageDates[0])}` : "—";
+
+  const td = { textAlign: "center", padding: "6px 8px", borderBottom: "0.5px solid var(--bdrs)" };
+
   return (
     <div>
-      <FilterChips options={[{ id: "nh", label: "Ngân hàng" }, { id: "ck", label: "Chứng khoán" }, { id: "bds", label: "BĐS" }, { id: "thep", label: "Thép" }]} active="nh" onChange={() => {}} />
-      <MockNote>Bảng mẫu — chờ kết nối API SMDT mã.</MockNote>
-      <Card noPad>
-        <TableWrap minWidth={820}>
-          <thead>
-            <tr>
-              <th style={thStyle}>Ngày ↓</th>
-              {thMa.map((h) => <th key={h} style={{ ...thStyle, textAlign: "center" }}>{h}</th>)}
-              <th style={{ ...thStyle, textAlign: "center" }}>Tỷ trọng</th>
-            </tr>
-          </thead>
-          <tbody>
-            {SMDT_MA_ROWS.map((r) => (
-              <tr key={r[0]}>
-                <td style={{ padding: "8px 14px", fontSize: 12, color: "var(--t3)", borderBottom: "0.5px solid var(--bdrs)", whiteSpace: "nowrap" }}>{r[0]}</td>
-                {r.slice(1, 10).map((c, i) => <td key={i} style={td}><HM cls={c} val={c === "neg" ? "neg" : c} /></td>)}
-                <td style={{ ...td, fontSize: 18, color: t.G }}>{r[10]}</td>
-              </tr>
+      <div style={{ display: "flex", alignItems: "center", gap: 13, flexWrap: "wrap", marginBottom: 16 }}>
+        <SMDTToolbarPill>{rangeLabel}</SMDTToolbarPill>
+        <SMDTToolbarPill as="label" style={{ cursor: "pointer" }}>
+          <span>Hiển thị:</span>
+          <select
+            value={sessions}
+            onChange={(e) => {
+              setSessions(Number(e.target.value));
+              setPage(1);
+            }}
+            style={{
+              border: "none",
+              outline: "none",
+              background: "transparent",
+              color: "var(--t2)",
+              font: "inherit",
+              fontWeight: 700,
+              cursor: "pointer",
+              appearance: "none",
+              padding: 0,
+            }}
+          >
+            {SESSION_OPTIONS.map((n) => (
+              <option key={n} value={n} style={{ background: "var(--surf)", color: "var(--t1)" }}>
+                {n} phiên
+              </option>
             ))}
-          </tbody>
-        </TableWrap>
+          </select>
+        </SMDTToolbarPill>
+        <SMDTSearchPill placeholder="Tìm mã..." value={query} onChange={(e) => setQuery(e.target.value)} />
+      </div>
+
+      {status === "loading" && !datesDesc.length && <Banner>Đang tải dữ liệu SMDT cổ phiếu…</Banner>}
+      {status === "error" && !datesDesc.length && (
+        <Banner tone="error">Lỗi tải dữ liệu: {error} <button onClick={refresh} style={linkBtn}>Thử lại</button></Banner>
+      )}
+
+      <Card noPad>
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, minWidth: Math.max(700, 120 + visibleTickers.length * 76) }}>
+            <thead>
+              <tr>
+                <th style={{ fontSize: 10, fontWeight: 700, color: "var(--t3)", textTransform: "uppercase", letterSpacing: ".07em", padding: "8px 14px", borderBottom: "0.5px solid var(--bdr)", background: "var(--elev)", whiteSpace: "nowrap", position: "sticky", left: 0, zIndex: 1 }}>NGÀY ↓</th>
+                {visibleTickers.map((tk) => (
+                  <th key={tk.key} title={tk.name} style={{ fontSize: 10, fontWeight: 700, color: "var(--t3)", textTransform: "uppercase", letterSpacing: ".07em", padding: "8px 10px", borderBottom: "0.5px solid var(--bdr)", textAlign: "center", background: "var(--elev)", whiteSpace: "nowrap" }}>{tk.key}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {pageDates.map((date) => (
+                <tr key={date}>
+                  <td style={{ padding: "7px 14px", fontSize: 13, color: "var(--t3)", borderBottom: "0.5px solid var(--bdrs)", whiteSpace: "nowrap", position: "sticky", left: 0, background: "var(--surf)" }}>{fmtDay(date)}</td>
+                  {visibleTickers.map((tk) => {
+                    const v = matrix[tk.key]?.[date];
+                    const cls = valToHmCls(v);
+                    return (
+                      <td key={tk.key} style={td}>
+                        {cls ? <HM cls={cls} val={v.toFixed(2)} /> : <span style={{ color: "var(--t4)" }}>—</span>}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+              {visibleTickers.length === 0 && (
+                <tr><td colSpan={2} style={{ padding: 28, textAlign: "center", color: "var(--t3)" }}>Không tìm thấy mã phù hợp.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </Card>
+
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 11, gap: 12, flexWrap: "wrap" }}>
+        <HeatLegend />
+        <Pagination page={safePage} totalPages={totalPages} onChange={setPage} />
+      </div>
+      <LiveFooter live={live} updatedAt={updatedAt} extra={`${visibleTickers.length} mã · ${datesDesc.length} phiên · channel smdt-ticker-cross`} />
     </div>
   );
 }

@@ -92,8 +92,7 @@ export function Sidebar({ curMod, onNav, compact }) {
       {item(null, "ti-building-store", "Cổ phiếu", { onClick: () => setCpOpen((o) => !o), isParent: true, isOpen: cpOpen, subIds: CP_IDS })}
       <div style={{ maxHeight: cpOpen ? 200 : 0, overflow: "hidden", transition: "max-height .25s ease" }}>
         {sub("dong-tien-cp", "ti-trending-up", "Dòng tiền cổ phiếu")}
-        {sub("smdt-ma", "ti-table-column", "SMDT mã")}
-        {sub("top-manh", "ti-star", "Top cổ phiếu mạnh")}
+        {sub("smdt-ma", "ti-table-column", "SMDT cổ phiếu")}
         {sub("stock-wave", "ti-wave-sine", "Sóng cổ phiếu")}
       </div>
 
