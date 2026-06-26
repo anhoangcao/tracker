@@ -24,6 +24,12 @@ function normalizeName(name) {
     .replace(/\s+/g, " ");
 }
 
+function normalizeTickers(tickers) {
+  if (Array.isArray(tickers)) return tickers;
+  if (typeof tickers === "string") return [tickers];
+  return [];
+}
+
 /** payload API → { branches:[{name,val}], tickerToBranch: {ticker: name} }. */
 function normalize(reply) {
   const branchs = reply?.BranchPathReply?.branchs ?? [];
@@ -34,7 +40,7 @@ function normalize(reply) {
     const name = normalizeName(branch?.name);
     if (!name) continue;
     branches.push({ name, val: branch?.val });
-    for (const ticker of branch?.tickers ?? []) {
+    for (const ticker of normalizeTickers(branch?.tickers)) {
       const tk = String(ticker || "").trim().toUpperCase();
       // Một mã có thể thuộc nhiều ngành; giữ ngành đầu tiên gặp.
       if (tk && !(tk in tickerToBranch)) tickerToBranch[tk] = name;
