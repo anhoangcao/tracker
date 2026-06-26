@@ -263,8 +263,7 @@ export function useCashFlowTicker() {
       const startedAt = Date.now();
       try {
         const apiUrl = getApiUrl(limit);
-        const separator = apiUrl.includes("?") ? "&" : "?";
-        const res = await fetch(`${apiUrl}${separator}_=${startedAt}`, { cache: "no-store" });
+        const res = await fetch(apiUrl, { cache: force ? "reload" : "default" });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
         const code = getReply(json)?.codeReply?.codeID;
