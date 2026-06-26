@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { ThemeProvider } from "./theme";
-import { DesktopDashboard } from "./layouts/DesktopDashboard";
-import { MobileDashboard } from "./layouts/MobileDashboard";
+import { ThemeProvider } from "../theme";
+import { DesktopDashboard } from "../components/layout/DesktopDashboard";
+import { MobileDashboard } from "../components/layout/MobileDashboard";
 
 /* ─────────────────────────── ROOT ──────────────────────────────────── */
 export default function App() {

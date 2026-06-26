@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
-import { Sidebar } from "../components/Sidebar";
-import { Topbar } from "../components/Topbar";
-import { BottomNav } from "../components/BottomNav";
-import { MODULES, ModuleView } from "../components/modules";
+import { MODULES, ModuleView } from "../../app/modules";
+import { BottomNav } from "./BottomNav";
+import { Sidebar } from "./Sidebar";
+import { Topbar } from "./Topbar";
 
 /* ─────────────────────────── MOBILE LAYOUT ─────────────────────────────
  * Topbar + nội dung cuộn + thanh tab dưới. Menu đầy đủ trong drawer trượt.

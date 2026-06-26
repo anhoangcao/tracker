@@ -1,14 +1,7 @@
-import { useTheme } from "../theme";
+import { BOTTOM_TABS } from "../../app/modules";
+import { useTheme } from "../../theme";
 
 /* ─────────────────────────── MOBILE BOTTOM TAB ─────────────────────────── */
-export const BOTTOM_TABS = [
-  { id: "dashboard", icon: "ti-layout-grid", label: "Dashboard" },
-  { id: "dong-tien-tt", icon: "ti-chart-line", label: "Thị trường" },
-  { id: "smdt-nganh", icon: "ti-table", label: "SMDT" },
-  { id: "stock-wave", icon: "ti-wave-sine", label: "Sóng" },
-  { id: "top-manh", icon: "ti-star", label: "Top mã" },
-];
-
 export function BottomNav({ curMod, onNav }) {
   const { t } = useTheme();
   return (

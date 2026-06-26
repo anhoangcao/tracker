@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
-import { useTheme } from "../theme";
+import { SIDEBAR_GROUPS } from "../../app/modules";
+import { useTheme } from "../../theme";
 
 /* ─────────────────────────── SIDEBAR ───────────────────────────────────
  * Điều hướng chính. `curMod` = id module đang xem, `onNav(id)` để chuyển.
  * Hai nhóm "Ngành" / "Cổ phiếu" dạng accordion, tự mở khi item con active.
  * ─────────────────────────────────────────────────────────────────────── */
-const NGANH_IDS = ["dong-tien-nganh", "smdt-nganh"];
-const CP_IDS = ["dong-tien-cp", "smdt-ma", "top-manh", "stock-wave", "do-song"];
+const NGANH_IDS = SIDEBAR_GROUPS.industry;
+const CP_IDS = SIDEBAR_GROUPS.stocks;
 
 export function Sidebar({ curMod, onNav, compact }) {
   const { t } = useTheme();

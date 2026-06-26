@@ -1,5 +1,5 @@
-import { useTheme } from "../theme";
-import { hmStyle, sigStyle, tagStyle, mono } from "../styles/tokens";
+import { useTheme } from "../../theme";
+import { hmStyle, sigStyle, tagStyle, mono } from "../../styles/tokens";
 
 /* ─────────────────────────── PRIMITIVES ────────────────────────────────
  * Component nền dùng chung cho mọi module. Phần "khung" dùng CSS var

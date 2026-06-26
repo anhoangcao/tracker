@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { useTheme } from "../theme";
-import { mono } from "../styles/tokens";
-import { INDICES } from "../data/dashboardData";
+import { INDICES } from "../../data/dashboardData";
+import { mono } from "../../styles/tokens";
+import { useTheme } from "../../theme";
 
 /* ─────────────────────────── TOPBAR ────────────────────────────────────
  * Tiêu đề module + chỉ số thị trường + đồng hồ realtime + nút đổi theme.

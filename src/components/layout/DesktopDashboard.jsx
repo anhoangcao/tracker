@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Sidebar } from "../components/Sidebar";
-import { Topbar } from "../components/Topbar";
-import { MODULES, ModuleView } from "../components/modules";
+import { MODULES, ModuleView } from "../../app/modules";
+import { Sidebar } from "./Sidebar";
+import { Topbar } from "./Topbar";
 
 /* ─────────────────────────── DESKTOP LAYOUT ──────────────────────────── */
 export function DesktopDashboard() {
