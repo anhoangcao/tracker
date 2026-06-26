@@ -28,7 +28,7 @@ export const cashFlowMatrixTh = {
   color: "var(--t3)",
   textTransform: "uppercase",
   letterSpacing: ".08em",
-  padding: "14px 18px",
+  padding: "12px 10px",
   borderBottom: "0.5px solid var(--bdr)",
   borderRight: "0.5px solid var(--bdrs)",
   background: "var(--elev)",
@@ -48,7 +48,7 @@ export const cashFlowMatrixDateTd = {
 };
 
 export const cashFlowMatrixTd = {
-  padding: "10px 12px",
+  padding: "9px 7px",
   textAlign: "center",
   borderBottom: "0.5px solid var(--bdrs)",
   borderRight: "0.5px solid var(--bdrs)",

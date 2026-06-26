@@ -32,7 +32,7 @@ export function CashFlowMatrixTable({
 }) {
   return (
     <div style={{ overflowX: "auto" }}>
-      <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, minWidth: Math.max(640, 150 + colCount * 116) }}>
+      <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, minWidth: Math.max(640, 150 + colCount * 96) }}>
         <thead>
           <tr>
             <th rowSpan={2} style={{ ...cashFlowMatrixTh, position: "sticky", left: 0, zIndex: 4, width: 150, textAlign: "left" }}>NGÀY ↓</th>
@@ -84,13 +84,13 @@ export function CashFlowMatrixTable({
                     const sig = dominantSig(g.tickers.map((tk) => tickerContentToSig(matrix[bucket.date]?.[tk])));
                     return (
                       <td key={g.industry} style={{ ...cashFlowMatrixTd, borderLeft: "1px solid var(--bdr)", background: isActive || isLatest ? "var(--elev)" : cashFlowMatrixTd.background }}>
-                        <CfBadge sig={sig} />
+                        <CfBadge sig={sig} compact />
                       </td>
                     );
                   }
                   return g.tickers.map((ticker) => (
                     <td key={ticker} style={{ ...cashFlowMatrixTd, borderLeft: groupStarts.has(ticker) ? "1px solid var(--bdr)" : cashFlowMatrixTd.borderRight, background: isActive || isLatest ? "var(--elev)" : cashFlowMatrixTd.background }}>
-                      <CfBadge sig={tickerContentToSig(matrix[bucket.date]?.[ticker])} />
+                      <CfBadge sig={tickerContentToSig(matrix[bucket.date]?.[ticker])} compact />
                     </td>
                   ));
                 })}

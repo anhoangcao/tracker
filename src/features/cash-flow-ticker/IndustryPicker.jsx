@@ -53,7 +53,7 @@ const pickerActionStyle = {
   fontSize: 11,
   fontWeight: 800,
   cursor: "pointer",
-  textTransform: "uppercase",
+  textTransform: "none",
   letterSpacing: 0,
 };
 
