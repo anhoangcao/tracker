@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import { useCashFlowTicker, useRealtimeCashFlowTickerFeed, tickerContentToSig } from "../../data/useCashFlowTicker";
+import { useBranchPath } from "../../data/useBranchPath";
 import { fmtFull, fmtNum } from "../../app/formatters";
 import { Card, Pagination, Banner, LiveFooter } from "../../components/ui";
 import { SMDTToolbarPill, SMDTSearchPill, InlineFilterChips, linkBtn } from "../../components/ui/ModuleControls";
@@ -11,6 +12,7 @@ import { CF_SIG, CF_SIG_ORDER, dominantSig } from "./cashFlowUtils";
 export function ModDongTienCP() {
   const { latest, buckets, status, error, updatedAt, refresh, applyTick } = useCashFlowTicker();
   const { connected: live } = useRealtimeCashFlowTickerFeed(applyTick);
+  const { tickerToBranch } = useBranchPath();
   const [filter, setFilter] = useState("all");
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
@@ -20,21 +22,26 @@ export function ModDongTienCP() {
 
   const rows = latest?.rows || [];
 
-  /* Mã + ngành (type), giữ thứ tự xuất hiện của ngành để gom nhóm cột. */
+  /* Mã + ngành thật (từ getBranchPath), gom nhóm cột theo tên ngành thay cho sàn. */
   const { tickerPool, industries } = useMemo(() => {
     const seen = new Map();
-    const indOrder = [];
     const indSeen = new Set();
     for (const bucket of buckets) {
       for (const row of bucket.rows || []) {
-        const ind = (row.type || "").trim() || "Khác";
+        const ind = tickerToBranch[row.ticker] || "Khác";
         if (!seen.has(row.ticker)) seen.set(row.ticker, { ticker: row.ticker, type: ind });
-        if (!indSeen.has(ind)) { indSeen.add(ind); indOrder.push(ind); }
+        indSeen.add(ind);
       }
     }
     const pool = [...seen.values()].sort((a, b) => a.ticker.localeCompare(b.ticker));
-    return { tickerPool: pool, industries: indOrder.sort((a, b) => a.localeCompare(b, "vi")) };
-  }, [buckets]);
+    // Ngành xếp theo alphabet (vi); "Khác" luôn ở cuối.
+    const indList = [...indSeen].sort((a, b) => {
+      if (a === "Khác") return 1;
+      if (b === "Khác") return -1;
+      return a.localeCompare(b, "vi");
+    });
+    return { tickerPool: pool, industries: indList };
+  }, [buckets, tickerToBranch]);
 
   const latestByTicker = useMemo(() => {
     const map = new Map();

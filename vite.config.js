@@ -12,6 +12,9 @@ let cashFlowTickerDevCache = null;
 let cashFlowTickerDevLastFetched = 0;
 let smdtTickerDevCache = null;
 let smdtTickerDevLastFetched = 0;
+let branchPathDevCache = null;
+let branchPathDevLastFetched = 0;
+const BRANCH_PATH_CACHE_DURATION = 5 * 60 * 1000; // Thành phần ngành/mã ít đổi → cache dài hơn.
 const CACHE_DURATION = 3 * 1000; // Realtime là đường chính; proxy chỉ phục vụ snapshot ban đầu + lưới dự phòng, giữ ngắn để tươi.
 const API_ACCOUNT = "thao.dtt";
 const STOCK_WAVE_REPLY_KEYS = ["StockWaveReply", "StockWaveRequest"];
@@ -451,6 +454,50 @@ function smdtDevPlugin() {
               }
             };
 
+            res.statusCode = 200;
+            res.setHeader("Content-Type", "application/json");
+            res.setHeader("Cache-Control", "no-store, max-age=0");
+            res.end(JSON.stringify(out));
+          } catch (err) {
+            res.statusCode = 500;
+            res.setHeader("Content-Type", "application/json");
+            res.end(JSON.stringify({ error: err.message }));
+          }
+        } else if (reqUrl.startsWith("/api/branch-path")) {
+          const now = Date.now();
+          if (!branchPathDevCache || (now - branchPathDevLastFetched > BRANCH_PATH_CACHE_DURATION)) {
+            try {
+              const response = await fetch("https://stocktraders.vn/service/data/getBranchPath", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ BranchPathRequest: { account: API_ACCOUNT } })
+              });
+              if (!response.ok) throw new Error(`HTTP ${response.status}`);
+              const data = await response.json();
+              const code = data?.BranchPathReply?.codeReply?.codeID;
+              if (code && code !== "S0000") throw new Error(`API response code ${code}`);
+              if (!Array.isArray(data?.BranchPathReply?.branchs)) throw new Error("API response missing branchs");
+              branchPathDevCache = data;
+              branchPathDevLastFetched = now;
+            } catch (err) {
+              console.error("Local dev branch path proxy fetch error:", err);
+              if (!branchPathDevCache) {
+                res.statusCode = 502;
+                res.setHeader("Content-Type", "application/json");
+                res.end(JSON.stringify({ error: err.message }));
+                return;
+              }
+            }
+          }
+
+          try {
+            const reply = branchPathDevCache?.BranchPathReply || {};
+            const out = {
+              BranchPathReply: {
+                codeReply: reply.codeReply || { codeID: "S0000", codeName: "SUCSESS" },
+                branchs: Array.isArray(reply.branchs) ? reply.branchs : []
+              }
+            };
             res.statusCode = 200;
             res.setHeader("Content-Type", "application/json");
             res.setHeader("Cache-Control", "no-store, max-age=0");

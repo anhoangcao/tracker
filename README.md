@@ -21,30 +21,39 @@ npm run dev      # dev server on http://localhost:3000
 
 ```
 src/
-├── main.jsx                  # Entry point; injects global CSS
-├── App.jsx                   # Root; desktop/mobile switch on window width
-├── styles/
-│   └── tokens.js             # Design tokens (T), global CSS, helpers
-├── data/
-│   └── dashboardData.js      # All static dashboard data
-├── components/
-│   ├── Icon.jsx              # Inline SVG icon set
-│   ├── atoms.jsx             # Card, CardHeader, Pulse, StrengthBar, StockTag
-│   ├── DonutChart.jsx        # Market-state donut
-│   ├── Sidebar.jsx           # Desktop sidebar nav
-│   ├── Topbar.jsx            # Top bar (indices + user)
-│   ├── BottomNav.jsx         # Mobile bottom tab bar
-│   ├── TopTabSwitcher.jsx    # Mobile tabbed top-lists
-│   └── sections/             # Dashboard content cards
-│       ├── MarketBanner.jsx
-│       ├── MoneyFlow.jsx
-│       ├── InvestorProfile.jsx
-│       ├── Portfolio.jsx
-│       ├── TopLists.jsx
-│       └── AIAdvisor.jsx
-└── layouts/
-    ├── DesktopDashboard.jsx
-    └── MobileDashboard.jsx
+  app/
+    App.jsx
+    modules.js
+  components/
+    ui/
+      Card.jsx
+      Table.jsx
+      Pagination.jsx
+      Badges.jsx
+    layout/
+      Sidebar.jsx
+      Topbar.jsx
+      BottomNav.jsx
+  features/
+    dashboard/
+      Dashboard.jsx
+    stock-wave/
+      StockWave.jsx
+      WaveDonut.jsx
+    smdt-branch/
+      SMDTBranch.jsx
+    smdt-ticker/
+      SMDTTicker.jsx
+    cash-flow-branch/
+      CashFlowBranch.jsx
+    cash-flow-ticker/
+      CashFlowTicker.jsx
+      IndustryPicker.jsx
+      CashFlowMatrixTable.jsx
+      cashFlowUtils.js
+  data/
+  styles/
+  theme/
 ```
 
 > Data is hard-coded for the UI demo — "Dữ liệu chỉ mang tính tham khảo, không phải lời khuyên đầu tư."
