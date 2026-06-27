@@ -6,7 +6,6 @@ import {
   cashFlowMatrixDateTd,
   cashFlowMatrixTd,
   cashFlowMatrixTh,
-  dominantSig,
 } from "./cashFlowUtils";
 
 function toDateInputValue(date) {
@@ -27,6 +26,7 @@ export function CashFlowMatrixTable({
   pageDates,
   safePage,
   activeDate,
+  branchIndustrySigByDate,
   toggleCollapse,
   visibleTickers,
 }) {
@@ -81,7 +81,7 @@ export function CashFlowMatrixTable({
                 </td>
                 {groups.map((g) => {
                   if (collapsedInd.has(g.industry)) {
-                    const sig = dominantSig(g.tickers.map((tk) => tickerContentToSig(matrix[bucket.date]?.[tk])));
+                    const sig = branchIndustrySigByDate?.[g.industry]?.[toDateInputValue(bucket.date)] || null;
                     return (
                       <td key={g.industry} style={{ ...cashFlowMatrixTd, borderLeft: "1px solid var(--bdr)", background: isActive || isLatest ? "var(--elev)" : cashFlowMatrixTd.background }}>
                         <CfBadge sig={sig} compact />

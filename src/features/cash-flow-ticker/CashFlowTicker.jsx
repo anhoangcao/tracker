@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useCashFlowTicker, useRealtimeCashFlowTickerFeed, tickerContentToSig } from "../../data/useCashFlowTicker";
+import { useCashFlowBranch, useRealtimeCashFlowFeed, contentToSig } from "../../data/useCashFlowBranch";
 import { useBranchPath } from "../../data/useBranchPath";
 import { fmtFull, fmtNum } from "../../app/formatters";
 import { Card, Pagination, Banner, LiveFooter } from "../../components/ui";
@@ -7,10 +8,32 @@ import { SMDTToolbarPill, SMDTSearchPill, InlineFilterChips, linkBtn } from "../
 import { CashFlowMatrixTable } from "./CashFlowMatrixTable";
 import { CfBadge } from "./CfBadge";
 import { IndustryPicker } from "./IndustryPicker";
-import { CF_SIG, CF_SIG_ORDER, dominantSig } from "./cashFlowUtils";
+import { CF_SIG, CF_SIG_ORDER } from "./cashFlowUtils";
 
 const HIDDEN_INDUSTRIES_KEY = "cashflow_ticker_hidden_industries_v1";
 const COLLAPSED_INDUSTRIES_KEY = "cashflow_ticker_collapsed_industries_v1";
+const INDUSTRY_ALIAS_GROUPS = [
+  ["Môi giới chứng khoán", "Chứng khoán"],
+  ["Ngân hàng thương mại truyền thống", "Ngân hàng"],
+  ["Bất động sản dân cư", "BĐS Dân cư", "BĐS dân cư", "Bất động sản Dân cư", "Bất động sản"],
+  ["Sản xuất, chế biến thép", "Thép"],
+  ["Sóng ngành Vin", "Sóng Vin", "Vin", "Vingroup"],
+  ["Xây dựng"],
+];
+
+function normalizeIndustryName(name) {
+  return String(name || "")
+    .normalize("NFC")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLowerCase();
+}
+
+function industryAliases(name) {
+  const normalized = normalizeIndustryName(name);
+  const group = INDUSTRY_ALIAS_GROUPS.find((items) => items.some((item) => normalizeIndustryName(item) === normalized));
+  return group || [name];
+}
 
 function loadSet(key) {
   try {
@@ -49,6 +72,13 @@ function findDateIndex(datesDesc, dateValue) {
 export function ModDongTienCP() {
   const { latest, buckets, status, error, updatedAt, refresh, applyTick } = useCashFlowTicker();
   const { connected: live } = useRealtimeCashFlowTickerFeed(applyTick);
+  const {
+    branches: signalBranches,
+    datesAsc: signalDatesAsc,
+    matrix: signalMatrix,
+    applyTick: applySignalTick,
+  } = useCashFlowBranch();
+  useRealtimeCashFlowFeed(applySignalTick);
   const { tickerToBranch, status: branchPathStatus, error: branchPathError, refresh: refreshBranchPath } = useBranchPath();
   const [filter, setFilter] = useState("all");
   const [query, setQuery] = useState("");
@@ -100,14 +130,33 @@ export function ModDongTienCP() {
     [activeByTicker]
   );
 
-  /* Tín hiệu đại diện của từng ngành = tín hiệu áp đảo ở phiên đang xem. */
-  const industrySig = useMemo(() => {
+  const branchIndustrySigByDate = useMemo(() => {
+    const signalByIndustry = new Map();
+    for (const branch of signalBranches) {
+      for (const name of [branch.key, branch.label, ...industryAliases(branch.key), ...industryAliases(branch.label)]) {
+        signalByIndustry.set(normalizeIndustryName(name), signalMatrix[branch.key] || {});
+      }
+    }
+
     const map = {};
     for (const ind of industries) {
-      map[ind] = dominantSig(tickerPool.filter((tk) => tk.type === ind).map((tk) => sigOfTicker(tk.ticker)));
+      const names = industryAliases(ind);
+      const row = names.map((name) => signalByIndustry.get(normalizeIndustryName(name))).find(Boolean);
+      map[ind] = {};
+      for (const date of signalDatesAsc) {
+        map[ind][toDateInputValue(date)] = contentToSig(row?.[date]);
+      }
     }
     return map;
-  }, [industries, tickerPool, sigOfTicker]);
+  }, [industries, signalBranches, signalDatesAsc, signalMatrix]);
+
+  /* Tín hiệu ngành lấy trực tiếp từ API Dòng tiền ngành để đồng bộ tuyệt đối. */
+  const industrySig = useMemo(() => {
+    const activeValue = toDateInputValue(activeBucket?.date || latestDate);
+    const map = {};
+    for (const ind of industries) map[ind] = branchIndustrySigByDate[ind]?.[activeValue] || null;
+    return map;
+  }, [activeBucket?.date, branchIndustrySigByDate, industries, latestDate]);
 
   /* Lọc theo ngành đang chọn + trạng thái + tìm kiếm. */
   const filteredTickers = useMemo(() => {
@@ -337,6 +386,7 @@ export function ModDongTienCP() {
           pageDates={pageDates}
           safePage={safePage}
           activeDate={dateInputValue}
+          branchIndustrySigByDate={branchIndustrySigByDate}
           toggleCollapse={toggleCollapse}
           visibleTickers={visibleTickers}
         />
