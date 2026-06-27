@@ -10,6 +10,7 @@ const PERSIST_LIMIT = FULL_LIMIT;
 // gần nhất — tránh QuotaExceededError. Lần mở lại sẽ refetch full 500 ngay nên không mất gì.
 const CACHE_PERSIST_LIMIT = 150;
 const DEFAULT_REFRESH_MS = 15_000;
+const WARMUP_REFRESH_DELAYS = [1_000, 3_000, 6_000];
 const CACHE_KEY = "cashflow_ticker_data_cache_v5";
 const LEGACY_CACHE_KEYS = ["cashflow_ticker_data_cache_v4", "cashflow_ticker_data_cache_v3"];
 const CHANNELS = ["money-flow-stock"];
@@ -28,8 +29,11 @@ export function tickerContentToSig(content) {
 
 let globalCache = null;
 
-function getApiUrl(limit) {
-  return `${API_BASE_URL}?limit=${limit}`;
+function getApiUrl(limit, { fresh = false, bust = false } = {}) {
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (fresh) params.set("fresh", "1");
+  if (bust) params.set("_", String(Date.now()));
+  return `${API_BASE_URL}?${params.toString()}`;
 }
 
 function getRefreshMs() {
@@ -259,15 +263,15 @@ export function useCashFlowTicker() {
   const [error, setError] = useState(null);
   const [updatedAt, setUpdatedAt] = useState(() => cached?.updatedAt || null);
 
-  const fetchSnapshot = useCallback(async ({ background = false, force = false, limit = FULL_LIMIT } = {}) => {
-    if (inFlightRef.current && !force) return inFlightRef.current;
+  const fetchSnapshot = useCallback(async ({ background = false, force = false, fresh = false, limit = FULL_LIMIT } = {}) => {
+    if (inFlightRef.current) return inFlightRef.current;
 
     const request = (async () => {
       if (!background) setStatus((s) => (s === "ready" ? "ready" : "loading"));
       const startedAt = Date.now();
       try {
-        const apiUrl = getApiUrl(limit);
-        const res = await fetch(apiUrl, { cache: force ? "reload" : "default" });
+        const apiUrl = getApiUrl(limit, { fresh, bust: force || fresh });
+        const res = await fetch(apiUrl, { cache: "no-store" });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
         const code = getReply(json)?.codeReply?.codeID;
@@ -303,9 +307,21 @@ export function useCashFlowTicker() {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
+    const warmupTimers = [];
     const firstLimit = cached ? FULL_LIMIT : INITIAL_LIMIT;
-    fetchSnapshot({ limit: firstLimit }).then(() => {
-      if (!cached && firstLimit < FULL_LIMIT) fetchSnapshot({ background: true, force: true, limit: FULL_LIMIT });
+    fetchSnapshot({ background: Boolean(cached), fresh: Boolean(cached), limit: firstLimit }).then(() => {
+      if (cancelled) return;
+      if (!cached && firstLimit < FULL_LIMIT) {
+        fetchSnapshot({ background: true, force: true, fresh: true, limit: FULL_LIMIT });
+      }
+
+      for (const delay of WARMUP_REFRESH_DELAYS) {
+        const timer = window.setTimeout(() => {
+          fetchSnapshot({ background: true, force: true, fresh: true, limit: FULL_LIMIT });
+        }, delay);
+        warmupTimers.push(timer);
+      }
     });
     const refresh = () => {
       if (document.visibilityState === "visible") fetchSnapshot({ background: true, limit: FULL_LIMIT });
@@ -314,6 +330,8 @@ export function useCashFlowTicker() {
     window.addEventListener("focus", refresh);
     document.addEventListener("visibilitychange", refresh);
     return () => {
+      cancelled = true;
+      for (const timer of warmupTimers) window.clearTimeout(timer);
       window.clearInterval(timer);
       window.removeEventListener("focus", refresh);
       document.removeEventListener("visibilitychange", refresh);
@@ -345,7 +363,7 @@ export function useCashFlowTicker() {
   }, [state.allowedTickers, state.buckets]);
 
   const latest = state.buckets[state.buckets.length - 1] || null;
-  return { ...state, latest, status, error, updatedAt, refresh: () => fetchSnapshot({ force: true }), applyTick };
+  return { ...state, latest, status, error, updatedAt, refresh: () => fetchSnapshot({ force: true, fresh: true }), applyTick };
 }
 
 function getRealtimeUrl() {

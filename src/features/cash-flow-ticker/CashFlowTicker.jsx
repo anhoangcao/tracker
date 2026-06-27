@@ -70,7 +70,7 @@ function findDateIndex(datesDesc, dateValue) {
 }
 
 export function ModDongTienCP() {
-  const { latest, buckets, status, error, updatedAt, refresh, applyTick } = useCashFlowTicker();
+  const { latest, buckets, allowedTickers, status, error, updatedAt, refresh, applyTick } = useCashFlowTicker();
   const { connected: live } = useRealtimeCashFlowTickerFeed(applyTick);
   const {
     branches: signalBranches,
@@ -90,22 +90,22 @@ export function ModDongTienCP() {
 
   const rows = latest?.rows || [];
 
-  /* Chỉ giữ mã có ngành thật từ getBranchPath; bỏ nhóm "Khác" để không bung full snapshot API. */
+  /* Vũ trụ mã = danh sách mã đang giao dịch (allowedTickers) ∩ mã có ngành thật từ getBranchPath.
+   * Lấy thẳng từ allowedTickers nên ổn định ngay từ lần paint đầu (không phụ thuộc số phiên đã tải),
+   * tránh nhá 162→168 và phản ánh đúng tổng (vd 173) kể cả mã chưa có tín hiệu dòng tiền nào. */
   const { tickerPool, industries } = useMemo(() => {
     const seen = new Map();
     const indSeen = new Set();
-    for (const bucket of buckets) {
-      for (const row of bucket.rows || []) {
-        const ind = tickerToBranch[row.ticker];
-        if (!ind) continue;
-        if (!seen.has(row.ticker)) seen.set(row.ticker, { ticker: row.ticker, type: ind });
-        indSeen.add(ind);
-      }
+    for (const ticker of allowedTickers || []) {
+      const ind = tickerToBranch[ticker];
+      if (!ind) continue;
+      if (!seen.has(ticker)) seen.set(ticker, { ticker, type: ind });
+      indSeen.add(ind);
     }
     const pool = [...seen.values()].sort((a, b) => a.ticker.localeCompare(b.ticker));
     const indList = [...indSeen].sort((a, b) => a.localeCompare(b, "vi"));
     return { tickerPool: pool, industries: indList };
-  }, [buckets, tickerToBranch]);
+  }, [allowedTickers, tickerToBranch]);
 
   const datesDesc = useMemo(() => [...buckets].reverse(), [buckets]);
   const latestDate = latest?.date || datesDesc[0]?.date || null;

@@ -92,28 +92,37 @@ async function fetchTotalTradeTickersFromSource() {
     .map((ticker) => String(ticker).trim().toUpperCase());
 }
 
-function getTotalTradeTickersFast() {
+async function refreshTotalTradeTickersCache() {
+  if (totalTradeRefreshPromise) return totalTradeRefreshPromise;
+
+  totalTradeRefreshPromise = fetchTotalTradeTickersFromSource()
+    .then((tickers) => {
+      totalTradeTickerCache = tickers;
+      totalTradeLastFetched = Date.now();
+      return tickers;
+    })
+    .catch((error) => {
+      console.error("Failed to refresh total trade ticker cache from source:", error);
+      return totalTradeTickerCache || [];
+    })
+    .finally(() => {
+      totalTradeRefreshPromise = null;
+    });
+
+  return totalTradeRefreshPromise;
+}
+
+async function getTotalTradeTickers({ fresh = false, waitForInitial = false } = {}) {
   const now = Date.now();
-  if (totalTradeTickerCache && now - totalTradeLastFetched <= TOTAL_TRADE_CACHE_DURATION) {
+  if (!fresh && totalTradeTickerCache && now - totalTradeLastFetched <= TOTAL_TRADE_CACHE_DURATION) {
     return totalTradeTickerCache;
   }
 
-  if (!totalTradeRefreshPromise) {
-    totalTradeRefreshPromise = fetchTotalTradeTickersFromSource()
-      .then((tickers) => {
-        totalTradeTickerCache = tickers;
-        totalTradeLastFetched = Date.now();
-        return tickers;
-      })
-      .catch((error) => {
-        console.error("Failed to refresh total trade ticker cache from source:", error);
-        return totalTradeTickerCache || [];
-      })
-      .finally(() => {
-        totalTradeRefreshPromise = null;
-      });
+  if (fresh || waitForInitial || !totalTradeTickerCache) {
+    return refreshTotalTradeTickersCache();
   }
 
+  refreshTotalTradeTickersCache();
   return totalTradeTickerCache || [];
 }
 
@@ -173,22 +182,38 @@ export default async function handler(req, res) {
   if (isNaN(limit) || limit <= 0) {
     limit = 150;
   }
+  const wantsFresh = req.query.fresh === "1" || req.query.fresh === "true";
+  if (wantsFresh) {
+    res.setHeader("Cache-Control", "no-store, max-age=0");
+  }
 
-  if (!serverCache) {
-    try {
-      await refreshCashFlowTickerCache();
-    } catch (error) {
+  // Khi thiếu snapshot hoặc danh sách mã, nạp song song để first paint nhanh nhất.
+  const needSnapshot = !serverCache || wantsFresh;
+  const needTickers = !totalTradeTickerCache || wantsFresh;
+
+  let allowedTickers;
+  try {
+    if (needSnapshot || needTickers) {
+      [, allowedTickers] = await Promise.all([
+        needSnapshot ? refreshCashFlowTickerCache() : Promise.resolve(serverCache),
+        getTotalTradeTickers({ fresh: wantsFresh, waitForInitial: true }),
+      ]);
+    } else {
+      // Cache nóng: trả ngay, làm tươi snapshot/danh sách mã ở nền nếu đã cũ (stale-while-revalidate).
+      if (now - lastFetched > CACHE_DURATION) refreshCashFlowTickerCache();
+      allowedTickers = await getTotalTradeTickers({ fresh: false, waitForInitial: false });
+    }
+  } catch (error) {
+    if (!serverCache) {
       return res.status(502).json({
         error: "Failed to load data from source",
         details: error.message,
       });
     }
-  } else if (now - lastFetched > CACHE_DURATION) {
-    refreshCashFlowTickerCache();
+    return res.status(500).json({ error: "Failed to process filtered data", details: error.message });
   }
 
   try {
-    const allowedTickers = getTotalTradeTickersFast();
     return res.status(200).json(sliceReply(serverCache, limit, allowedTickers));
   } catch (error) {
     return res.status(500).json({ error: "Failed to process filtered data", details: error.message });

@@ -114,28 +114,37 @@ async function fetchTotalTradeTickersFromSource() {
     .map((ticker) => String(ticker).trim().toUpperCase());
 }
 
-function getTotalTradeTickersFast() {
+async function refreshTotalTradeTickersDevCache() {
+  if (totalTradeTickerDevRefreshPromise) return totalTradeTickerDevRefreshPromise;
+
+  totalTradeTickerDevRefreshPromise = fetchTotalTradeTickersFromSource()
+    .then((tickers) => {
+      totalTradeTickerDevCache = tickers;
+      totalTradeTickerDevLastFetched = Date.now();
+      return tickers;
+    })
+    .catch((err) => {
+      console.error("Local dev total trade ticker proxy fetch error:", err);
+      return totalTradeTickerDevCache || [];
+    })
+    .finally(() => {
+      totalTradeTickerDevRefreshPromise = null;
+    });
+
+  return totalTradeTickerDevRefreshPromise;
+}
+
+async function getTotalTradeTickers({ fresh = false, waitForInitial = false } = {}) {
   const now = Date.now();
-  if (totalTradeTickerDevCache && (now - totalTradeTickerDevLastFetched <= TOTAL_TRADE_CACHE_DURATION)) {
+  if (!fresh && totalTradeTickerDevCache && (now - totalTradeTickerDevLastFetched <= TOTAL_TRADE_CACHE_DURATION)) {
     return totalTradeTickerDevCache;
   }
 
-  if (!totalTradeTickerDevRefreshPromise) {
-    totalTradeTickerDevRefreshPromise = fetchTotalTradeTickersFromSource()
-      .then((tickers) => {
-        totalTradeTickerDevCache = tickers;
-        totalTradeTickerDevLastFetched = Date.now();
-        return tickers;
-      })
-      .catch((err) => {
-        console.error("Local dev total trade ticker proxy fetch error:", err);
-        return totalTradeTickerDevCache || [];
-      })
-      .finally(() => {
-        totalTradeTickerDevRefreshPromise = null;
-      });
+  if (fresh || waitForInitial || !totalTradeTickerDevCache) {
+    return refreshTotalTradeTickersDevCache();
   }
 
+  refreshTotalTradeTickersDevCache();
   return totalTradeTickerDevCache || [];
 }
 
@@ -401,30 +410,40 @@ function smdtDevPlugin() {
           const host = req.headers.host || "localhost:3000";
           const parsedUrl = new URL(reqUrl, `http://${host}`);
           const limitParam = parsedUrl.searchParams.get("limit");
+          const wantsFresh = parsedUrl.searchParams.get("fresh") === "1" || parsedUrl.searchParams.get("fresh") === "true";
           let limit = parseInt(limitParam || "150", 10);
           if (isNaN(limit) || limit <= 0) {
             limit = 150;
           }
 
           const now = Date.now();
-          if (!cashFlowTickerDevCache) {
-            try {
-              await refreshCashFlowTickerDevCache();
-            } catch (err) {
-              res.statusCode = 502;
-              res.setHeader("Content-Type", "application/json");
-              res.end(JSON.stringify({ error: err.message }));
-              return;
+          // Khi thiếu snapshot hoặc danh sách mã, nạp song song để first paint nhanh nhất.
+          const needSnapshot = !cashFlowTickerDevCache || wantsFresh;
+          const needTickers = !totalTradeTickerDevCache || wantsFresh;
+
+          let allowedTickers;
+          try {
+            if (needSnapshot || needTickers) {
+              [, allowedTickers] = await Promise.all([
+                needSnapshot ? refreshCashFlowTickerDevCache() : Promise.resolve(cashFlowTickerDevCache),
+                getTotalTradeTickers({ fresh: wantsFresh, waitForInitial: true }),
+              ]);
+            } else {
+              // Cache nóng: trả ngay, làm tươi ở nền nếu đã cũ (stale-while-revalidate).
+              if (now - cashFlowTickerDevLastFetched > CACHE_DURATION) refreshCashFlowTickerDevCache();
+              allowedTickers = await getTotalTradeTickers({ fresh: false, waitForInitial: false });
             }
-          } else if (now - cashFlowTickerDevLastFetched > CACHE_DURATION) {
-            refreshCashFlowTickerDevCache();
+          } catch (err) {
+            res.statusCode = 502;
+            res.setHeader("Content-Type", "application/json");
+            res.end(JSON.stringify({ error: err.message }));
+            return;
           }
 
           try {
             const replyKey = CASH_FLOW_TICKER_REPLY_KEYS.find((key) => cashFlowTickerDevCache?.[key]) || "CashFlowTickerReply";
             const reply = getCashFlowTickerReply(cashFlowTickerDevCache) || {};
             const buckets = Array.isArray(reply.cashFlowTickers) ? reply.cashFlowTickers : [];
-            const allowedTickers = getTotalTradeTickersFast();
             const allowedTickerSet = new Set(allowedTickers);
             const out = {
               [replyKey]: {
