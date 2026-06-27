@@ -2,12 +2,15 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { io } from "socket.io-client";
 
 const API_BASE_URL = "/api/cashflow-ticker";
-const FULL_LIMIT = 150;
+const FULL_LIMIT = 500;
 const INITIAL_LIMIT = 25;
 const PERSIST_LIMIT = FULL_LIMIT;
+// Giữ đủ 500 phiên trong RAM (để lịch lùi tới 2025), nhưng chỉ lưu localStorage 150 phiên
+// gần nhất — tránh QuotaExceededError. Lần mở lại sẽ refetch full 500 ngay nên không mất gì.
+const CACHE_PERSIST_LIMIT = 150;
 const DEFAULT_REFRESH_MS = 15_000;
-const CACHE_KEY = "cashflow_ticker_data_cache_v4";
-const LEGACY_CACHE_KEYS = ["cashflow_ticker_data_cache_v3"];
+const CACHE_KEY = "cashflow_ticker_data_cache_v5";
+const LEGACY_CACHE_KEYS = ["cashflow_ticker_data_cache_v4", "cashflow_ticker_data_cache_v3"];
 const CHANNELS = ["money-flow-stock"];
 const REPLY_KEYS = ["CashFlowTickerReply", "CashFlowTickerRequest"];
 
@@ -136,7 +139,7 @@ function mergeTicks(state, ticks) {
   const buckets = [...bucketMap.entries()]
     .map(([date, rows]) => ({ date, rows: sortRows([...rows.values()]) }))
     .sort((a, b) => toDateSortKey(a.date).localeCompare(toDateSortKey(b.date)))
-    .slice(-150);
+    .slice(-PERSIST_LIMIT);
 
   return { ...state, buckets };
 }
@@ -229,7 +232,7 @@ function getCachedData() {
 
 function setCachedData(data) {
   try {
-    const buckets = Array.isArray(data.buckets) ? data.buckets.slice(-PERSIST_LIMIT) : [];
+    const buckets = Array.isArray(data.buckets) ? data.buckets.slice(-CACHE_PERSIST_LIMIT) : [];
     localStorage.setItem(
       CACHE_KEY,
       JSON.stringify({

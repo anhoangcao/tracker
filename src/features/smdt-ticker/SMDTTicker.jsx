@@ -242,7 +242,8 @@ export function ModSMDTMa() {
               min={minDate}
               max={maxDate}
               onChange={(e) => goToDate(e.target.value)}
-              style={{ position: "absolute", inset: 0, opacity: 0, cursor: "pointer" }}
+              onClick={(e) => e.currentTarget.showPicker?.()}
+              style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, cursor: "pointer" }}
             />
           </label>
           <button

@@ -1,9 +1,29 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { valToHmCls } from "../../styles/tokens";
 import { useSMDT, useRealtimeFeed } from "../../data/useSMDT";
-import { fmtDay, fmtFull, SESSION_OPTIONS } from "../../app/formatters";
-import { Card, TableWrap, Pagination, HM, Banner, LiveFooter } from "../../components/ui";
+import { fmtDay, fmtFull, fmtNum } from "../../app/formatters";
+import { Card, Pagination, HM, Banner, LiveFooter } from "../../components/ui";
 import { HeatLegend, SMDTToolbarPill, SMDTFilterChips, SMDTSearchPill, linkBtn } from "../../components/ui/ModuleControls";
+import { cashFlowMatrixDateTd, cashFlowMatrixTd, cashFlowMatrixTh } from "../cash-flow-ticker/cashFlowUtils";
+
+const SMDT_SESSION_OPTIONS = [12, 25, 50];
+
+function toDateInputValue(date) {
+  if (!date || typeof date !== "string") return "";
+  if (date.includes("/")) {
+    const [d, m, y] = date.split("/");
+    return d && m && y ? `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}` : "";
+  }
+  return date.slice(0, 10);
+}
+
+function findDateIndex(datesDesc, dateValue) {
+  if (!dateValue || datesDesc.length === 0) return -1;
+  const exactIndex = datesDesc.findIndex((date) => toDateInputValue(date) === dateValue);
+  if (exactIndex >= 0) return exactIndex;
+  const previousIndex = datesDesc.findIndex((date) => toDateInputValue(date) <= dateValue);
+  return previousIndex === -1 ? datesDesc.length - 1 : previousIndex;
+}
 
 export function ModSMDTNganh() {
   const { branches, datesAsc, matrix, status, error, updatedAt, refresh, applyTick } = useSMDT();
@@ -12,7 +32,8 @@ export function ModSMDTNganh() {
   const [tab, setTab] = useState("all");
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
-  const [sessions, setSessions] = useState(25);
+  const [sessions, setSessions] = useState(12);
+  const [selectedDate, setSelectedDate] = useState("");
 
   const coreCount = branches.filter((b) => b.isCore).length;
   const subCount = branches.length - coreCount;
@@ -25,16 +46,39 @@ export function ModSMDTNganh() {
   }, [branches, tab, query]);
 
   const datesDesc = useMemo(() => [...datesAsc].reverse(), [datesAsc]);
+  const latestDate = datesDesc[0] || null;
+  const activeDateValue = selectedDate || toDateInputValue(latestDate);
+  const activeDateIndex = useMemo(() => findDateIndex(datesDesc, activeDateValue), [datesDesc, activeDateValue]);
+  const activeDate = activeDateIndex >= 0 ? datesDesc[activeDateIndex] : latestDate;
+  const minDate = toDateInputValue(datesDesc[datesDesc.length - 1]);
+  const maxDate = toDateInputValue(latestDate);
+  const dateInputValue = toDateInputValue(activeDate);
+  const canGoNewer = activeDateIndex > 0;
+  const canGoOlder = activeDateIndex >= 0 && activeDateIndex < datesDesc.length - 1;
   const totalPages = Math.max(1, Math.ceil(datesDesc.length / sessions));
   const safePage = Math.min(page, totalPages);
   const pageDates = datesDesc.slice((safePage - 1) * sessions, safePage * sessions);
-  const rangeLabel = pageDates.length ? `${fmtFull(pageDates[pageDates.length - 1])} → ${fmtFull(pageDates[0])}` : "—";
+  const colCount = visibleBranches.length;
 
-  const td = { textAlign: "center", padding: "6px 8px", borderBottom: "0.5px solid var(--bdrs)" };
+  const goToDate = useCallback((dateValue) => {
+    const targetIndex = findDateIndex(datesDesc, dateValue);
+    if (targetIndex >= 0) {
+      setSelectedDate(toDateInputValue(datesDesc[targetIndex]));
+      setPage(Math.floor(targetIndex / sessions) + 1);
+    }
+  }, [datesDesc, sessions]);
+
+  const stepDate = useCallback((delta) => {
+    if (datesDesc.length === 0) return;
+    const currentIndex = activeDateIndex >= 0 ? activeDateIndex : 0;
+    const targetIndex = Math.min(Math.max(currentIndex + delta, 0), datesDesc.length - 1);
+    setSelectedDate(toDateInputValue(datesDesc[targetIndex]));
+    setPage(Math.floor(targetIndex / sessions) + 1);
+  }, [activeDateIndex, datesDesc, sessions]);
 
   return (
-    <div>
-      <div style={{ display: "flex", alignItems: "center", gap: 13, flexWrap: "wrap", marginBottom: 16 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "nowrap", overflow: "visible", paddingBottom: 2 }}>
         <SMDTFilterChips
           options={[
             { id: "all", label: `Tất cả ${branches.length || ""}`.trim() },
@@ -44,35 +88,58 @@ export function ModSMDTNganh() {
           active={tab}
           onChange={(v) => { setTab(v); setPage(1); }}
         />
-        <SMDTToolbarPill>{rangeLabel}</SMDTToolbarPill>
-        <SMDTToolbarPill as="label" style={{ cursor: "pointer" }}>
-          <span>Hiển thị:</span>
+        <SMDTToolbarPill style={{ gap: 3, padding: "0 6px", flexShrink: 0 }}>
+          <button
+            type="button"
+            onClick={() => stepDate(1)}
+            disabled={!canGoOlder}
+            title="Lùi 1 phiên"
+            style={{ width: 18, height: 22, border: "none", borderRadius: 6, background: "transparent", color: canGoOlder ? "var(--t2)" : "var(--t4)", cursor: canGoOlder ? "pointer" : "not-allowed", display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 0 }}
+          >
+            <i className="ti ti-chevron-left" style={{ fontSize: 14 }} />
+          </button>
+          <label style={{ cursor: "pointer", position: "relative", display: "inline-flex", alignItems: "center", gap: 5, minWidth: 96, justifyContent: "center" }}>
+            <i className="ti ti-calendar" style={{ fontSize: 13, color: "var(--t4)" }} />
+            {dateInputValue ? fmtFull(dateInputValue) : "—"}
+            <input
+              type="date"
+              value={dateInputValue}
+              min={minDate}
+              max={maxDate}
+              onChange={(e) => goToDate(e.target.value)}
+              onClick={(e) => e.currentTarget.showPicker?.()}
+              style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, cursor: "pointer" }}
+            />
+          </label>
+          <button
+            type="button"
+            onClick={() => stepDate(-1)}
+            disabled={!canGoNewer}
+            title="Tiến 1 phiên"
+            style={{ width: 18, height: 22, border: "none", borderRadius: 6, background: "transparent", color: canGoNewer ? "var(--t2)" : "var(--t4)", cursor: canGoNewer ? "pointer" : "not-allowed", display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 0 }}
+          >
+            <i className="ti ti-chevron-right" style={{ fontSize: 14 }} />
+          </button>
+        </SMDTToolbarPill>
+        <SMDTToolbarPill as="label" style={{ cursor: "pointer", padding: "0 10px", flexShrink: 0 }}>
           <select
             value={sessions}
             onChange={(e) => {
               setSessions(Number(e.target.value));
               setPage(1);
+              setSelectedDate("");
             }}
-            style={{
-              border: "none",
-              outline: "none",
-              background: "transparent",
-              color: "var(--t2)",
-              font: "inherit",
-              fontWeight: 700,
-              cursor: "pointer",
-              appearance: "none",
-              padding: 0,
-            }}
+            style={{ border: "none", outline: "none", background: "transparent", color: "var(--t2)", font: "inherit", fontWeight: 700, cursor: "pointer", appearance: "none", padding: 0 }}
           >
-            {SESSION_OPTIONS.map((n) => (
+            {SMDT_SESSION_OPTIONS.map((n) => (
               <option key={n} value={n} style={{ background: "var(--surf)", color: "var(--t1)" }}>
                 {n} phiên
               </option>
             ))}
           </select>
+          <i className="ti ti-chevron-down" style={{ fontSize: 12, color: "var(--t4)" }} />
         </SMDTToolbarPill>
-        <SMDTSearchPill placeholder="Tìm ngành..." value={query} onChange={(e) => setQuery(e.target.value)} />
+        <SMDTSearchPill placeholder="Tìm ngành..." value={query} onChange={(e) => setQuery(e.target.value)} style={{ width: 150, padding: "0 10px", flexShrink: 0 }} />
       </div>
 
       {status === "loading" && !datesDesc.length && <Banner>Đang tải dữ liệu…</Banner>}
@@ -81,42 +148,52 @@ export function ModSMDTNganh() {
       )}
 
       <Card noPad>
-        <TableWrap minWidth={700}>
-          <thead>
-            <tr>
-              <th style={{ fontSize: 10, fontWeight: 700, color: "var(--t3)", textTransform: "uppercase", letterSpacing: ".07em", padding: "8px 14px", borderBottom: "0.5px solid var(--bdr)", background: "var(--elev)", whiteSpace: "nowrap", position: "sticky", left: 0, zIndex: 1 }}>NGÀY ↓</th>
-              {visibleBranches.map((b) => (
-                <th key={b.key} style={{ fontSize: 10, fontWeight: 700, color: "var(--t3)", textTransform: "uppercase", letterSpacing: ".07em", padding: "8px 10px", borderBottom: "0.5px solid var(--bdr)", textAlign: "center", background: "var(--elev)", whiteSpace: "nowrap" }}>{b.label.toUpperCase()}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {pageDates.map((date) => (
-              <tr key={date}>
-                <td style={{ padding: "7px 14px", fontSize: 13, color: "var(--t3)", borderBottom: "0.5px solid var(--bdrs)", whiteSpace: "nowrap", position: "sticky", left: 0, background: "var(--surf)" }}>{fmtDay(date)}</td>
-                {visibleBranches.map((b) => {
-                  const v = matrix[b.key]?.[date];
-                  const cls = valToHmCls(v);
-                  return (
-                    <td key={b.key} style={td}>
-                      {cls ? <HM cls={cls} val={v.toFixed(2)} /> : <span style={{ color: "var(--t4)" }}>—</span>}
-                    </td>
-                  );
-                })}
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, minWidth: Math.max(700, 150 + colCount * 90) }}>
+            <thead>
+              <tr>
+                <th style={{ ...cashFlowMatrixTh, position: "sticky", left: 0, zIndex: 4, width: 150, textAlign: "left" }}>NGÀY ↓</th>
+                {visibleBranches.map((b) => (
+                  <th key={b.key} title={b.key} style={{ ...cashFlowMatrixTh, minWidth: 90 }}>{b.label.toUpperCase()}</th>
+                ))}
               </tr>
-            ))}
-            {visibleBranches.length === 0 && (
-              <tr><td colSpan={2} style={{ padding: 28, textAlign: "center", color: "var(--t3)" }}>Không tìm thấy ngành phù hợp.</td></tr>
-            )}
-          </tbody>
-        </TableWrap>
+            </thead>
+            <tbody>
+              {pageDates.map((date, di) => {
+                const isLatest = di === 0 && safePage === 1;
+                const isActive = dateInputValue === toDateInputValue(date);
+                const dateBg = isActive || isLatest ? "var(--elev)" : "var(--surf)";
+                return (
+                  <tr key={date}>
+                    <td style={{ ...cashFlowMatrixDateTd, position: "sticky", left: 0, zIndex: 2, background: dateBg, fontWeight: isActive || isLatest ? 800 : 700 }}>
+                      {fmtDay(date)}
+                      {isLatest && <span style={{ fontSize: 8, background: "var(--Bs)", color: "var(--B)", borderRadius: 3, padding: "1px 5px", marginLeft: 5, fontWeight: 800 }}>HN</span>}
+                    </td>
+                    {visibleBranches.map((b) => {
+                      const v = matrix[b.key]?.[date];
+                      const cls = valToHmCls(v);
+                      return (
+                        <td key={b.key} style={{ ...cashFlowMatrixTd, background: isActive || isLatest ? "var(--elev)" : cashFlowMatrixTd.background }}>
+                          {cls ? <HM cls={cls} val={v.toFixed(2)} /> : <span style={{ color: "var(--t4)" }}>—</span>}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              })}
+              {visibleBranches.length === 0 && (
+                <tr><td colSpan={2} style={{ padding: 28, textAlign: "center", color: "var(--t3)" }}>Không tìm thấy ngành phù hợp.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </Card>
 
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 11, gap: 12, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
         <HeatLegend />
         <Pagination page={safePage} totalPages={totalPages} onChange={setPage} />
       </div>
-      <LiveFooter live={live} updatedAt={updatedAt} extra={`${visibleBranches.length} ngành · ${datesDesc.length} phiên`} />
+      <LiveFooter live={live} updatedAt={updatedAt} extra={`${fmtNum(visibleBranches.length)} / ${fmtNum(branches.length)} ngành · ${datesDesc.length} phiên`} />
     </div>
   );
 }
