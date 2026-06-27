@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { io } from "socket.io-client";
+import { resolveRealtimeUrl } from "./realtimeUrl";
 
 const API_BASE_URL = "/api/cashflow-ticker";
 const FULL_LIMIT = 500;
@@ -348,10 +349,11 @@ export function useCashFlowTicker() {
 }
 
 function getRealtimeUrl() {
-  const configured = import.meta.env.VITE_CASHFLOW_TICKER_WS_URL || import.meta.env.VITE_CASHFLOW_WS_URL || import.meta.env.VITE_SMDT_WS_URL;
-  if (configured) return configured;
-  if (typeof window !== "undefined" && window.location.protocol === "https:") return `${window.location.origin}/realtime`;
-  return "http://112.213.91.235:3005/realtime";
+  return resolveRealtimeUrl(
+    import.meta.env.VITE_CASHFLOW_TICKER_WS_URL,
+    import.meta.env.VITE_CASHFLOW_WS_URL,
+    import.meta.env.VITE_SMDT_WS_URL
+  );
 }
 
 export function useRealtimeCashFlowTickerFeed(onTick) {

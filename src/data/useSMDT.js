@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { io } from "socket.io-client";
+import { resolveRealtimeUrl } from "./realtimeUrl";
 
 /* ───────────────────────────────────────────────────────────────────────
  * useSMDT — nguồn dữ liệu "Sức mạnh dòng tiền ngành"
@@ -347,14 +348,7 @@ export function useSMDT() {
 }
 
 function getRealtimeUrl() {
-  const configured = import.meta.env.VITE_SMDT_WS_URL;
-  if (configured) return configured;
-
-  if (typeof window !== "undefined" && window.location.protocol === "https:") {
-    return `${window.location.origin}/realtime`;
-  }
-
-  return "http://112.213.91.235:3005/realtime";
+  return resolveRealtimeUrl(import.meta.env.VITE_SMDT_WS_URL);
 }
 
 /* ───────────────────────────────────────────────────────────────────────

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { io } from "socket.io-client";
+import { resolveRealtimeUrl } from "./realtimeUrl";
 
 /* ───────────────────────────────────────────────────────────────────────
  * useStockWave — nguồn dữ liệu "Sóng cổ phiếu"
@@ -279,14 +280,7 @@ export function useStockWave() {
 }
 
 function getRealtimeUrl() {
-  const configured = import.meta.env.VITE_STOCK_WAVE_WS_URL || import.meta.env.VITE_SMDT_WS_URL;
-  if (configured) return configured;
-
-  if (typeof window !== "undefined" && window.location.protocol === "https:") {
-    return `${window.location.origin}/realtime`;
-  }
-
-  return "http://112.213.91.235:3005/realtime";
+  return resolveRealtimeUrl(import.meta.env.VITE_STOCK_WAVE_WS_URL, import.meta.env.VITE_SMDT_WS_URL);
 }
 
 /* ───────────────────────────────────────────────────────────────────────
