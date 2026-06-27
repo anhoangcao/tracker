@@ -49,7 +49,7 @@ function findDateIndex(datesDesc, dateValue) {
 export function ModDongTienCP() {
   const { latest, buckets, status, error, updatedAt, refresh, applyTick } = useCashFlowTicker();
   const { connected: live } = useRealtimeCashFlowTickerFeed(applyTick);
-  const { tickerToBranch } = useBranchPath();
+  const { tickerToBranch, status: branchPathStatus, error: branchPathError, refresh: refreshBranchPath } = useBranchPath();
   const [filter, setFilter] = useState("all");
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
@@ -60,24 +60,20 @@ export function ModDongTienCP() {
 
   const rows = latest?.rows || [];
 
-  /* Mã + ngành thật (từ getBranchPath), gom nhóm cột theo tên ngành thay cho sàn. */
+  /* Chỉ giữ mã có ngành thật từ getBranchPath; bỏ nhóm "Khác" để không bung full snapshot API. */
   const { tickerPool, industries } = useMemo(() => {
     const seen = new Map();
     const indSeen = new Set();
     for (const bucket of buckets) {
       for (const row of bucket.rows || []) {
-        const ind = tickerToBranch[row.ticker] || "Khác";
+        const ind = tickerToBranch[row.ticker];
+        if (!ind) continue;
         if (!seen.has(row.ticker)) seen.set(row.ticker, { ticker: row.ticker, type: ind });
         indSeen.add(ind);
       }
     }
     const pool = [...seen.values()].sort((a, b) => a.ticker.localeCompare(b.ticker));
-    // Ngành xếp theo alphabet (vi); "Khác" luôn ở cuối.
-    const indList = [...indSeen].sort((a, b) => {
-      if (a === "Khác") return 1;
-      if (b === "Khác") return -1;
-      return a.localeCompare(b, "vi");
-    });
+    const indList = [...indSeen].sort((a, b) => a.localeCompare(b, "vi"));
     return { tickerPool: pool, industries: indList };
   }, [buckets, tickerToBranch]);
 
@@ -247,6 +243,10 @@ export function ModDongTienCP() {
   if (status === "loading" && !rows.length) return <Banner>Đang tải dữ liệu dòng tiền cổ phiếu…</Banner>;
   if (status === "error" && !rows.length)
     return <Banner tone="error">Lỗi tải dữ liệu: {error} <button onClick={refresh} style={linkBtn}>Thử lại</button></Banner>;
+  if (branchPathStatus === "loading" && !Object.keys(tickerToBranch).length)
+    return <Banner>Đang tải danh sách ngành cổ phiếu…</Banner>;
+  if (branchPathStatus === "error" && !Object.keys(tickerToBranch).length)
+    return <Banner tone="error">Lỗi tải danh sách ngành: {branchPathError} <button onClick={refreshBranchPath} style={linkBtn}>Thử lại</button></Banner>;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>

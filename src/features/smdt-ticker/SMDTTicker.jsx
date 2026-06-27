@@ -57,7 +57,7 @@ function getSmdtSig(value) {
 export function ModSMDTMa() {
   const { tickers, datesAsc, matrix, status, error, updatedAt, refresh, applyTick } = useSMDTTicker();
   const { connected: live } = useRealtimeSMDTTickerFeed(applyTick);
-  const { tickerToBranch } = useBranchPath();
+  const { tickerToBranch, status: branchPathStatus, error: branchPathError, refresh: refreshBranchPath } = useBranchPath();
 
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
@@ -68,16 +68,13 @@ export function ModSMDTMa() {
 
   const { tickerPool, industries } = useMemo(() => {
     const indSeen = new Set();
-    const pool = tickers.map((tk) => {
-      const ind = tickerToBranch[tk.key] || "Khác";
+    const pool = tickers.flatMap((tk) => {
+      const ind = tickerToBranch[tk.key];
+      if (!ind) return [];
       indSeen.add(ind);
-      return { ...tk, type: ind };
+      return [{ ...tk, type: ind }];
     });
-    const indList = [...indSeen].sort((a, b) => {
-      if (a === "Khác") return 1;
-      if (b === "Khác") return -1;
-      return a.localeCompare(b, "vi");
-    });
+    const indList = [...indSeen].sort((a, b) => a.localeCompare(b, "vi"));
     return { tickerPool: pool, industries: indList };
   }, [tickers, tickerToBranch]);
 
@@ -280,6 +277,10 @@ export function ModSMDTMa() {
       {status === "loading" && !datesDesc.length && <Banner>Đang tải dữ liệu SMDT cổ phiếu…</Banner>}
       {status === "error" && !datesDesc.length && (
         <Banner tone="error">Lỗi tải dữ liệu: {error} <button onClick={refresh} style={linkBtn}>Thử lại</button></Banner>
+      )}
+      {branchPathStatus === "loading" && !Object.keys(tickerToBranch).length && <Banner>Đang tải danh sách ngành cổ phiếu…</Banner>}
+      {branchPathStatus === "error" && !Object.keys(tickerToBranch).length && (
+        <Banner tone="error">Lỗi tải danh sách ngành: {branchPathError} <button onClick={refreshBranchPath} style={linkBtn}>Thử lại</button></Banner>
       )}
 
       <Card noPad>
