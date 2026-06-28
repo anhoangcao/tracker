@@ -1,12 +1,31 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { valToHmCls } from "../../styles/tokens";
 import { useSMDT, useRealtimeFeed } from "../../data/useSMDT";
 import { fmtDay, fmtFull, fmtNum } from "../../app/formatters";
 import { Card, Pagination, HM, Banner, LiveFooter } from "../../components/ui";
 import { HeatLegend, SMDTToolbarPill, SMDTFilterChips, SMDTSearchPill, linkBtn } from "../../components/ui/ModuleControls";
+import { IndustryPicker } from "../cash-flow-ticker/IndustryPicker";
 import { cashFlowMatrixDateTd, cashFlowMatrixTd, cashFlowMatrixTh } from "../cash-flow-ticker/cashFlowUtils";
 
+const HIDDEN_INDUSTRIES_KEY = "smdt_branch_hidden_industries_v1";
 const SMDT_SESSION_OPTIONS = [12, 25, 50];
+
+function loadSet(key) {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(key) || "[]");
+    return new Set(Array.isArray(parsed) ? parsed : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function saveSet(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify([...value]));
+  } catch {
+    // Bỏ qua nếu trình duyệt chặn localStorage.
+  }
+}
 
 function toDateInputValue(date) {
   if (!date || typeof date !== "string") return "";
@@ -25,6 +44,14 @@ function findDateIndex(datesDesc, dateValue) {
   return previousIndex === -1 ? datesDesc.length - 1 : previousIndex;
 }
 
+function getSmdtSig(value) {
+  if (!Number.isFinite(value)) return null;
+  if (value >= 70) return "si";
+  if (value >= 20) return "sn";
+  if (value > -20) return "so";
+  return "st";
+}
+
 export function ModSMDTNganh() {
   const { branches, datesAsc, matrix, status, error, updatedAt, refresh, applyTick } = useSMDT();
   const { connected: live } = useRealtimeFeed(applyTick);
@@ -34,16 +61,19 @@ export function ModSMDTNganh() {
   const [page, setPage] = useState(1);
   const [sessions, setSessions] = useState(12);
   const [selectedDate, setSelectedDate] = useState("");
+  const [hiddenInd, setHiddenInd] = useState(() => loadSet(HIDDEN_INDUSTRIES_KEY));
 
   const coreCount = branches.filter((b) => b.isCore).length;
   const subCount = branches.length - coreCount;
+  const industries = useMemo(() => branches.map((b) => b.label), [branches]);
 
   const visibleBranches = useMemo(() => {
     const q = query.trim().toLowerCase();
     return branches
       .filter((b) => (tab === "all" ? true : tab === "core" ? b.isCore : !b.isCore))
+      .filter((b) => !hiddenInd.has(b.label))
       .filter((b) => (q ? b.label.toLowerCase().includes(q) : true));
-  }, [branches, tab, query]);
+  }, [branches, hiddenInd, tab, query]);
 
   const datesDesc = useMemo(() => [...datesAsc].reverse(), [datesAsc]);
   const latestDate = datesDesc[0] || null;
@@ -59,6 +89,24 @@ export function ModSMDTNganh() {
   const safePage = Math.min(page, totalPages);
   const pageDates = datesDesc.slice((safePage - 1) * sessions, safePage * sessions);
   const colCount = visibleBranches.length;
+  const industrySig = useMemo(() => {
+    const map = {};
+    for (const b of branches) map[b.label] = getSmdtSig(matrix[b.key]?.[activeDate]);
+    return map;
+  }, [activeDate, branches, matrix]);
+
+  useEffect(() => {
+    if (!industries.length) return;
+    const valid = new Set(industries);
+    setHiddenInd((prev) => {
+      const next = new Set([...prev].filter((ind) => valid.has(ind)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [industries]);
+
+  useEffect(() => {
+    saveSet(HIDDEN_INDUSTRIES_KEY, hiddenInd);
+  }, [hiddenInd]);
 
   const goToDate = useCallback((dateValue) => {
     const targetIndex = findDateIndex(datesDesc, dateValue);
@@ -76,9 +124,43 @@ export function ModSMDTNganh() {
     setPage(Math.floor(targetIndex / sessions) + 1);
   }, [activeDateIndex, datesDesc, sessions]);
 
+  const toggleInd = useCallback((ind) => {
+    setHiddenInd((prev) => {
+      const next = new Set(prev);
+      if (next.has(ind)) next.delete(ind); else next.add(ind);
+      return next;
+    });
+  }, []);
+  const showIndustries = useCallback((items) => {
+    setHiddenInd((prev) => {
+      const next = new Set(prev);
+      for (const ind of items) next.delete(ind);
+      return next;
+    });
+  }, []);
+  const hideIndustries = useCallback((items) => {
+    setHiddenInd((prev) => {
+      const next = new Set(prev);
+      for (const ind of items) next.add(ind);
+      return next;
+    });
+  }, []);
+  const selectAllInd = useCallback(() => setHiddenInd(new Set()), []);
+  const clearAllInd = useCallback(() => setHiddenInd(new Set(industries)), [industries]);
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "nowrap", overflow: "visible", paddingBottom: 2 }}>
+        <IndustryPicker
+          industries={industries}
+          hidden={hiddenInd}
+          industrySig={industrySig}
+          onToggle={toggleInd}
+          onAll={selectAllInd}
+          onNone={clearAllInd}
+          onShowIndustries={showIndustries}
+          onHideIndustries={hideIndustries}
+        />
         <SMDTFilterChips
           options={[
             { id: "all", label: `Tất cả ${branches.length || ""}`.trim() },

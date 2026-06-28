@@ -103,6 +103,122 @@ function WaveMetric({ label, value, sub, color }) {
   );
 }
 
+function ReliabilityPill({ value, t }) {
+  const tone = value >= 70
+    ? { fg: t.G, bg: t.Gs, border: t.Gb, icon: "ti-shield-check" }
+    : value >= 55
+      ? { fg: t.A, bg: t.As, border: t.Ab, icon: "ti-shield-half" }
+      : { fg: "var(--t3)", bg: "var(--elev)", border: "var(--bdr)", icon: "ti-shield" };
+
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "flex-end", gap: 5, minWidth: 66, padding: "5px 8px", borderRadius: 999, background: tone.bg, border: `0.5px solid ${tone.border}`, color: tone.fg, fontSize: 11, fontWeight: 800, ...mono }}>
+      <i className={`ti ${tone.icon}`} style={{ fontSize: 13 }} />
+      {value.toFixed(0)}%
+    </span>
+  );
+}
+
+function HistoryValue({ value, color, bg }) {
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "flex-end", minWidth: 56, padding: "5px 8px", borderRadius: 7, background: bg, color, fontSize: 12, fontWeight: 800, ...mono }}>
+      {fmtNum(value)}
+    </span>
+  );
+}
+
+function FlowBalance({ row, t }) {
+  const buySide = row.waitbuy + row.buy;
+  const sellSide = row.waitsell + row.sell;
+  const buyWidth = Math.max(0, Math.min(100, pct(buySide, row.total)));
+  const tone = buySide >= sellSide ? t.G : t.R;
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8, minWidth: 150 }}>
+      <span style={{ width: 42, textAlign: "right", fontSize: 11, fontWeight: 800, color: tone, ...mono }}>{buyWidth.toFixed(0)}%</span>
+      <div style={{ width: 82, height: 7, borderRadius: 999, overflow: "hidden", background: t.Rs, border: "0.5px solid var(--bdr)" }}>
+        <div style={{ width: `${buyWidth}%`, height: "100%", background: t.G, borderRadius: 999 }} />
+      </div>
+    </div>
+  );
+}
+
+function WaveHistoryTable({ rows, page, totalPages, onPageChange, totalRows, t }) {
+  const cell = {
+    padding: "9px 10px",
+    borderBottom: "0.5px solid var(--bdrs)",
+    whiteSpace: "nowrap",
+    verticalAlign: "middle",
+  };
+  const headRight = (
+    <div style={{ display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+      <span style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 26, padding: "0 9px", borderRadius: 999, background: "var(--elev)", border: "0.5px solid var(--bdr)", color: "var(--t3)", fontSize: 11, fontWeight: 700 }}>
+        <i className="ti ti-database" style={{ fontSize: 13 }} />
+        {fmtNum(totalRows)} phiên
+      </span>
+      <span style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 26, padding: "0 9px", borderRadius: 999, background: t.Gs, border: `0.5px solid ${t.Gb}`, color: t.G, fontSize: 11, fontWeight: 800 }}>
+        <span style={{ width: 6, height: 6, borderRadius: "50%", background: t.G }} />
+        Mua
+      </span>
+      <span style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 26, padding: "0 9px", borderRadius: 999, background: t.Rs, border: `0.5px solid ${t.Rb}`, color: t.R, fontSize: 11, fontWeight: 800 }}>
+        <span style={{ width: 6, height: 6, borderRadius: "50%", background: t.R }} />
+        Bán
+      </span>
+    </div>
+  );
+
+  return (
+    <Card noPad>
+      <div style={{ padding: "14px 16px 12px", borderBottom: "0.5px solid var(--bdr)", background: "var(--surf)" }}>
+        <CardHeader icon="ti-history" title="Lịch sử phiên" right={headRight} mb={0} />
+      </div>
+      <TableWrap minWidth={820}>
+        <THead cols={[
+          { label: "Ngày", pl: 16 },
+          { label: "Chờ mua", right: true },
+          { label: "Mua", right: true },
+          { label: "Chờ bán", right: true },
+          { label: "Bán", right: true },
+          { label: "Tổng", right: true },
+          { label: "Cân bằng", right: true },
+          { label: "Tin cậy", right: true },
+        ]} />
+        <tbody>
+          {rows.map((row, index) => {
+            const latest = page === 1 && index === 0;
+            const bg = latest ? "var(--elev)" : "var(--surf)";
+            return (
+              <tr key={row.date} style={{ background: bg }}>
+                <td style={{ ...cell, paddingLeft: 16 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                    <span style={{ color: latest ? "var(--t1)" : "var(--t2)", fontWeight: 800 }}>{fmtDay(row.date)}</span>
+                    {latest && <span style={{ fontSize: 8, background: "var(--Bs)", color: "var(--B)", borderRadius: 4, padding: "2px 5px", fontWeight: 800 }}>HN</span>}
+                  </div>
+                  <div style={{ marginTop: 2, fontSize: 10, color: "var(--t4)" }}>{fmtFull(row.date)}</div>
+                </td>
+                <td style={{ ...cell, textAlign: "right" }}><HistoryValue value={row.waitbuy} color={t.G} bg={t.Gs} /></td>
+                <td style={{ ...cell, textAlign: "right" }}><HistoryValue value={row.buy} color={t.MU} bg={t.MUs} /></td>
+                <td style={{ ...cell, textAlign: "right" }}><HistoryValue value={row.waitsell} color={t.A} bg={t.As} /></td>
+                <td style={{ ...cell, textAlign: "right" }}><HistoryValue value={row.sell} color={t.R} bg={t.Rs} /></td>
+                <td style={{ ...cell, textAlign: "right", color: "var(--t1)", fontWeight: 800, ...mono }}>{fmtNum(row.total)}</td>
+                <td style={{ ...cell, textAlign: "right" }}><FlowBalance row={row} t={t} /></td>
+                <td style={{ ...cell, textAlign: "right", paddingRight: 16 }}><ReliabilityPill value={row.reliability} t={t} /></td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </TableWrap>
+      {totalPages > 1 && (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "12px 16px", borderTop: "0.5px solid var(--bdr)", background: "var(--surf)", flexWrap: "wrap" }}>
+          <span style={{ fontSize: 11, color: "var(--t4)", fontWeight: 700 }}>
+            Trang {page}/{totalPages}
+          </span>
+          <Pagination page={page} totalPages={totalPages} onChange={onPageChange} />
+        </div>
+      )}
+    </Card>
+  );
+}
+
 /* ═══════════════════════════ AI ADVISOR / DÒ SÓNG (REAL) ═════════════════ */
 export function ModDoSong() {
   const { t } = useTheme();
@@ -139,8 +255,6 @@ export function ModDoSong() {
   const signalTone = buyPressure >= 15 ? t.G : buyPressure <= -15 ? t.R : t.A;
   const signalText = buyPressure >= 15 ? "Thiên mua" : buyPressure <= -15 ? "Thiên bán" : "Cân bằng";
   const tcColor = latest.reliability >= 70 ? t.G : latest.reliability >= 55 ? t.A : t.t3;
-
-  const td = { padding: "9px 10px", borderBottom: "0.5px solid var(--bdrs)", whiteSpace: "nowrap" };
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 14 }}>
@@ -208,36 +322,7 @@ export function ModDoSong() {
 
         <HistNavigator rowsDesc={rowsDesc} />
 
-        {/* Bảng lịch sử dò sóng (REAL) */}
-        <Card noPad>
-          <div style={{ padding: "15px 16px 0" }}>
-            <CardHeader icon="ti-history" title="Lịch sử phiên" meta={`· ${rowsDesc.length} phiên`} mb={0} />
-          </div>
-          <TableWrap minWidth={620}>
-            <THead cols={[{ label: "Ngày", pl: 16 }, { label: "Chờ mua", right: true }, { label: "Mua", right: true }, { label: "Chờ bán", right: true }, { label: "Bán", right: true }, { label: "Tổng", right: true }, { label: "Tin cậy", right: true }]} />
-            <tbody>
-              {pageRows.map((row) => {
-                const rc = row.reliability >= 70 ? t.G : row.reliability >= 55 ? t.A : t.t3;
-                return (
-                  <tr key={row.date}>
-                    <td style={{ ...td, paddingLeft: 16, color: "var(--t3)", fontWeight: 600 }}>{fmtDay(row.date)}</td>
-                    <td style={{ ...td, textAlign: "right", color: t.G, fontWeight: 700, ...mono }}>{fmtNum(row.waitbuy)}</td>
-                    <td style={{ ...td, textAlign: "right", color: t.MU, fontWeight: 700, ...mono }}>{fmtNum(row.buy)}</td>
-                    <td style={{ ...td, textAlign: "right", color: t.A, fontWeight: 700, ...mono }}>{fmtNum(row.waitsell)}</td>
-                    <td style={{ ...td, textAlign: "right", color: t.R, fontWeight: 700, ...mono }}>{fmtNum(row.sell)}</td>
-                    <td style={{ ...td, textAlign: "right", color: "var(--t2)", ...mono }}>{fmtNum(row.total)}</td>
-                    <td style={{ ...td, textAlign: "right", color: rc, fontWeight: 700, ...mono }}>{row.reliability.toFixed(0)}%</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </TableWrap>
-          {totalPages > 1 && (
-            <div style={{ padding: "12px 16px" }}>
-              <Pagination page={safePage} totalPages={totalPages} onChange={setPage} />
-            </div>
-          )}
-        </Card>
+        <WaveHistoryTable rows={pageRows} page={safePage} totalPages={totalPages} onPageChange={setPage} totalRows={rowsDesc.length} t={t} />
         <LiveFooter live={live} updatedAt={updatedAt} extra={`${rowsDesc.length} phiên`} />
       </div>
     </div>
