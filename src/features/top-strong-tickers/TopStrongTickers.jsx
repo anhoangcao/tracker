@@ -73,12 +73,29 @@ function sigWeight(sig) {
   return { si: 3, sn: 1.6, so: -1.1, st: -2.4 }[sig] || 0;
 }
 
-function classifyTicker(smdt, prevSmdt, tickerSig, branchSmdt) {
+function isPositiveSig(sig) {
+  return sig === "si" || sig === "sn";
+}
+
+function classifyTicker(smdt, prevSmdt, prev2Smdt, tickerSig, branchSmdt, branchSig) {
+  const hasPrev = Number.isFinite(prevSmdt);
   const momentum = Number.isFinite(prevSmdt) ? smdt - prevSmdt : 0;
-  if (smdt >= 70 && (prevSmdt < 70 || tickerSig === "si" || momentum >= 8)) return "vm";
+  const prevMomentum = Number.isFinite(prevSmdt) && Number.isFinite(prev2Smdt) ? prevSmdt - prev2Smdt : 0;
+  const crossedStrong = hasPrev && prevSmdt < 70 && smdt >= 70;
+  const crossedHot = hasPrev && prevSmdt < 100 && smdt >= 100;
+  const acceleratedStrong = smdt >= 70 && momentum >= 8;
+
+  if (crossedStrong || crossedHot || acceleratedStrong) return "vm";
+  if (!hasPrev && smdt >= 100) return "vm";
   if (smdt >= 70) return "dt";
-  if (smdt >= 50 || tickerSig === "si" || tickerSig === "sn" || branchSmdt >= 70) return "tn";
-  return "tn";
+
+  const rising = momentum > 0;
+  const risingTwoSessions = momentum > 0 && prevMomentum > 0;
+  const tickerFlowSupported = isPositiveSig(tickerSig) && (smdt >= 45 || rising);
+  const branchFlowSupported = Number.isFinite(branchSmdt) && branchSmdt >= 70 && isPositiveSig(branchSig) && smdt >= 45;
+  if ((smdt >= 50 && rising) || risingTwoSessions || tickerFlowSupported || branchFlowSupported) return "tn";
+
+  return null;
 }
 
 function makeIndustryLookup(branches, matrix, date, valueOf) {
@@ -244,29 +261,29 @@ function DonutChart({ rows }) {
   const freq = new Map();
   for (const row of rows) freq.set(row.industry, (freq.get(row.industry) || 0) + 1);
   const top = [...freq.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6);
-  const r = 31;
-  const c = 42;
+  const r = 26;
+  const c = 34;
   const circ = 2 * Math.PI * r;
   let offset = 0;
 
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 13 }}>
-      <svg width="84" height="84" viewBox="0 0 84 84" style={{ flexShrink: 0 }}>
-        <circle cx={c} cy={c} r={r} fill="none" stroke="var(--bdr)" strokeWidth="11" />
+    <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
+      <svg width="68" height="68" viewBox="0 0 68 68" style={{ flexShrink: 0 }}>
+        <circle cx={c} cy={c} r={r} fill="none" stroke="var(--bdr)" strokeWidth="9" />
         {top.map(([name, count], index) => {
           const len = total ? (count / total) * circ : 0;
           const color = INDUSTRY_COLORS[index % INDUSTRY_COLORS.length];
-          const node = <circle key={name} cx={c} cy={c} r={r} fill="none" stroke={color} strokeWidth="11" strokeDasharray={`${len} ${circ}`} strokeDashoffset={-offset} transform={`rotate(-90 ${c} ${c})`} />;
+          const node = <circle key={name} cx={c} cy={c} r={r} fill="none" stroke={color} strokeWidth="9" strokeDasharray={`${len} ${circ}`} strokeDashoffset={-offset} transform={`rotate(-90 ${c} ${c})`} />;
           offset += len;
           return node;
         })}
-        <text x={c} y={c - 4} textAnchor="middle" fill="var(--t1)" fontSize="14" fontWeight="800">{fmtNum(total)}</text>
-        <text x={c} y={c + 10} textAnchor="middle" fill="var(--t4)" fontSize="8" fontWeight="700">MÃ</text>
+        <text x={c} y={c - 3} textAnchor="middle" fill="var(--t1)" fontSize="12" fontWeight="800">{fmtNum(total)}</text>
+        <text x={c} y={c + 9} textAnchor="middle" fill="var(--t4)" fontSize="7" fontWeight="700">MÃ</text>
       </svg>
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 5, minWidth: 0 }}>
         {top.length ? top.map(([name, count], index) => (
-          <div key={name} style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 11, color: "var(--t2)", minWidth: 0 }}>
-            <span style={{ width: 7, height: 7, borderRadius: "50%", background: INDUSTRY_COLORS[index % INDUSTRY_COLORS.length], flexShrink: 0 }} />
+          <div key={name} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 10, color: "var(--t2)", minWidth: 0 }}>
+            <span style={{ width: 6, height: 6, borderRadius: "50%", background: INDUSTRY_COLORS[index % INDUSTRY_COLORS.length], flexShrink: 0 }} />
             <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</span>
             <span style={{ marginLeft: "auto", color: "var(--t1)", fontWeight: 800, ...mono }}>{count}</span>
           </div>
@@ -280,51 +297,51 @@ function OverviewPanel({ rows, filteredRows, counts }) {
   const total = Math.max(1, rows.length);
   const maxCount = Math.max(counts.vm || 0, counts.dt || 0, counts.tn || 0, 1);
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      <Card>
-        <CardHeader icon="ti-chart-bar" title="Tổng quan" mb={11} />
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 9 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <Card style={{ padding: "12px 13px" }}>
+        <CardHeader icon="ti-chart-bar" title="Tổng quan" mb={9} />
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7 }}>
           {[
             { id: "vm", label: "Vừa mạnh", sub: "Bứt lên", color: "var(--G)" },
             { id: "dt", label: "Duy trì", sub: "Trên ngưỡng", color: "var(--B)" },
             { id: "tn", label: "Tiềm năng", sub: "Đang cải thiện", color: "var(--A)" },
             { id: "all", label: "Đang lọc", sub: "Mã hiển thị", color: "var(--t1)", value: filteredRows.length },
           ].map((item) => (
-            <div key={item.id} style={{ background: "var(--elev)", border: "0.5px solid var(--bdr)", borderRadius: 8, padding: "10px 11px" }}>
-              <div style={{ fontSize: 21, fontWeight: 800, lineHeight: 1, color: item.color, ...mono }}>{fmtNum(item.value ?? counts[item.id] ?? 0)}</div>
-              <div style={{ marginTop: 5, color: "var(--t3)", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".05em" }}>{item.label}</div>
-              <div style={{ color: "var(--t4)", fontSize: 10 }}>{item.sub}</div>
+            <div key={item.id} style={{ background: "var(--elev)", border: "0.5px solid var(--bdr)", borderRadius: 8, padding: "8px 9px" }}>
+              <div style={{ fontSize: 18, fontWeight: 800, lineHeight: 1, color: item.color, ...mono }}>{fmtNum(item.value ?? counts[item.id] ?? 0)}</div>
+              <div style={{ marginTop: 4, color: "var(--t3)", fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".05em" }}>{item.label}</div>
+              <div style={{ color: "var(--t4)", fontSize: 9 }}>{item.sub}</div>
             </div>
           ))}
         </div>
       </Card>
-      <Card>
-        <CardHeader icon="ti-chart-donut" title="Phân bố theo ngành" mb={11} />
+      <Card style={{ padding: "12px 13px" }}>
+        <CardHeader icon="ti-chart-donut" title="Phân bố theo ngành" mb={9} />
         <DonutChart rows={filteredRows} />
       </Card>
-      <Card>
-        <CardHeader icon="ti-stairs-up" title="Phân bố trạng thái" mb={11} />
+      <Card style={{ padding: "12px 13px" }}>
+        <CardHeader icon="ti-stairs-up" title="Phân bố trạng thái" mb={9} />
         {["vm", "dt", "tn"].map((id) => {
           const meta = STATUS_META[id];
           const value = counts[id] || 0;
           return (
-            <div key={id} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 9 }}>
-              <span style={{ width: 68, color: meta.color, fontSize: 11, fontWeight: 700 }}>{meta.label}</span>
-              <div style={{ flex: 1, height: 6, borderRadius: 3, overflow: "hidden", background: "var(--elev)" }}>
+            <div key={id} style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 8 }}>
+              <span style={{ width: 62, color: meta.color, fontSize: 10, fontWeight: 700 }}>{meta.label}</span>
+              <div style={{ flex: 1, height: 5, borderRadius: 3, overflow: "hidden", background: "var(--elev)" }}>
                 <div style={{ width: `${(value / maxCount) * 100}%`, height: "100%", borderRadius: 3, background: meta.color }} />
               </div>
-              <span style={{ width: 60, textAlign: "right", color: "var(--t2)", fontSize: 11, ...mono }}>{Math.round((value / total) * 100)}%</span>
+              <span style={{ width: 44, textAlign: "right", color: "var(--t2)", fontSize: 10, ...mono }}>{Math.round((value / total) * 100)}%</span>
             </div>
           );
         })}
       </Card>
-      <Card>
-        <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 8, color: "var(--B)", fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".06em" }}>
-          <i className="ti ti-info-circle" style={{ fontSize: 14 }} />
+      <Card style={{ padding: "12px 13px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 7, color: "var(--B)", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".06em" }}>
+          <i className="ti ti-info-circle" style={{ fontSize: 13 }} />
           Ghi chú
         </div>
-        <div style={{ background: "var(--Bs)", border: "0.5px solid var(--Bb)", borderRadius: 8, padding: "9px 11px", color: "var(--t3)", fontSize: 11, lineHeight: 1.6 }}>
-          Top mã mạnh được xếp theo SMDT mã, cộng thêm sức mạnh ngành và tín hiệu dòng tiền của mã/ngành. Đây là bộ lọc theo dõi, không phải khuyến nghị giao dịch.
+        <div style={{ background: "var(--Bs)", border: "0.5px solid var(--Bb)", borderRadius: 8, padding: "8px 10px", color: "var(--t3)", fontSize: 10, lineHeight: 1.55 }}>
+          Vừa mạnh: mới vượt ngưỡng 70/100 hoặc tăng tốc mạnh. Duy trì: SMDT mã vẫn trên 70. Tiềm năng: dưới 70 nhưng đang cải thiện hoặc được dòng tiền/ngành ủng hộ.
         </div>
       </Card>
     </div>
@@ -359,6 +376,7 @@ export function ModTopMaManh() {
   const activeDateIndex = useMemo(() => findDateIndex(datesDesc, activeDateValue), [activeDateValue, datesDesc]);
   const activeSmdtDate = activeDateIndex >= 0 ? datesDesc[activeDateIndex] : latestSmdtDate;
   const prevSmdtDate = activeDateIndex >= 0 ? datesDesc[activeDateIndex + 1] || "" : "";
+  const prev2SmdtDate = activeDateIndex >= 0 ? datesDesc[activeDateIndex + 2] || "" : "";
   const minDate = toDateInputValue(datesDesc[datesDesc.length - 1]);
   const maxDate = toDateInputValue(latestSmdtDate);
   const dateInputValue = toDateInputValue(activeSmdtDate);
@@ -402,22 +420,24 @@ export function ModTopMaManh() {
       const smdt = smdtTicker.matrix[ticker]?.[activeSmdtDate];
       if (!Number.isFinite(smdt)) continue;
       const prevSmdt = smdtTicker.matrix[ticker]?.[prevSmdtDate];
+      const prev2Smdt = smdtTicker.matrix[ticker]?.[prev2SmdtDate];
       const cash = cashByTicker.get(ticker);
       const industry = branchPath.tickerToBranch[ticker] || "Khác";
       const branchSmdt = lookupIndustry(branchSmdtLookup, industry);
       const branchSig = lookupIndustry(branchSigLookup, industry);
       const tickerSig = tickerContentToSig(cash?.content || "");
       const momentum = Number.isFinite(prevSmdt) ? smdt - prevSmdt : 0;
-      const statusId = classifyTicker(smdt, prevSmdt, tickerSig, branchSmdt);
+      const statusId = classifyTicker(smdt, prevSmdt, prev2Smdt, tickerSig, branchSmdt, branchSig);
+      if (!statusId) continue;
       const score = smdt + (Number.isFinite(branchSmdt) ? branchSmdt * 0.22 : 0) + sigWeight(tickerSig) * 8 + sigWeight(branchSig) * 4 + Math.max(-12, Math.min(18, momentum * 0.7));
       data.push({
         ticker,
         name: tk.name || ticker,
         industry,
         price: cash?.price,
-        percent: cash?.percent || "",
         smdt,
         prevSmdt,
+        prev2Smdt,
         momentum,
         branchSmdt,
         tickerSig,
@@ -427,7 +447,7 @@ export function ModTopMaManh() {
       });
     }
     return data.sort((a, b) => b.score - a.score || b.smdt - a.smdt || a.ticker.localeCompare(b.ticker));
-  }, [activeSmdtDate, branchPath.tickerToBranch, branchSigLookup, branchSmdtLookup, cashByTicker, prevSmdtDate, smdtTicker.matrix, smdtTicker.tickers]);
+  }, [activeSmdtDate, branchPath.tickerToBranch, branchSigLookup, branchSmdtLookup, cashByTicker, prev2SmdtDate, prevSmdtDate, smdtTicker.matrix, smdtTicker.tickers]);
 
   const industries = useMemo(() => [...new Set(rows.map((row) => row.industry))].sort((a, b) => a.localeCompare(b, "vi")), [rows]);
   const industrySig = useMemo(() => {
@@ -517,14 +537,13 @@ export function ModTopMaManh() {
 
   const exportCsv = useCallback(() => {
     const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
-    const lines = [["Rank", "Mã", "Ngành", "Giá", "%", "SMDT ngành", "SMDT mã", "TH ngành", "TH cổ phiếu", "Trạng thái", "Điểm"].map(esc).join(",")];
+    const lines = [["Rank", "Mã", "Ngành", "Giá", "SMDT ngành", "SMDT mã", "TH ngành", "TH cổ phiếu", "Trạng thái", "Điểm"].map(esc).join(",")];
     filteredRows.forEach((row, index) => {
       lines.push([
         index + 1,
         row.ticker,
         row.industry,
         row.price || "",
-        row.percent,
         Number.isFinite(row.branchSmdt) ? row.branchSmdt.toFixed(2) : "",
         row.smdt.toFixed(2),
         row.branchSig ? SIG_LABEL[row.branchSig] : "",
@@ -556,7 +575,7 @@ export function ModTopMaManh() {
       {branchPath.status === "error" && !Object.keys(branchPath.tickerToBranch).length && (
         <Banner tone="error">Lỗi tải danh sách ngành: {branchPath.error} <button onClick={branchPath.refresh} style={linkBtn}>Thử lại</button></Banner>
       )}
-      <div style={{ display: "grid", gridTemplateColumns: narrow ? "1fr" : "minmax(0,1fr) 292px", gap: 14, alignItems: "start" }}>
+      <div style={{ display: "grid", gridTemplateColumns: narrow ? "1fr" : "minmax(0,1fr) 260px", gap: 12, alignItems: "start" }}>
         <div style={{ minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap", marginBottom: 10 }}>
             <SMDTToolbarPill style={{ gap: 3, padding: "0 6px", flexShrink: 0 }}>
@@ -636,7 +655,7 @@ export function ModTopMaManh() {
               <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, minWidth: 910 }}>
                 <thead>
                   <tr>
-                    {["#", "Mã", "Ngành", "Giá", "%", "SMDT ngành", "SMDT mã", "TH ngành", "TH cổ phiếu", "Trạng thái"].map((h, i) => (
+                    {["#", "Mã", "Ngành", "Giá", "SMDT ngành", "SMDT mã", "TH ngành", "TH cổ phiếu", "Trạng thái"].map((h, i) => (
                       <th key={h} style={{ padding: "9px 11px", background: "var(--elev)", borderBottom: "0.5px solid var(--bdr)", color: "var(--t4)", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".06em", textAlign: i >= 3 ? "right" : "left", whiteSpace: "nowrap" }}>
                         {h}
                       </th>
@@ -663,13 +682,9 @@ export function ModTopMaManh() {
                           </span>
                         </td>
                         <td style={tdStyle({ textAlign: "right", color: "var(--t1)", ...mono })}>{money(row.price)}</td>
-                        <td style={tdStyle({ textAlign: "right", color: String(row.percent).startsWith("-") ? "var(--R)" : "var(--G)", ...mono })}>{row.percent || "—"}</td>
                         <td style={tdStyle({ textAlign: "right" })}><SmdtBadge value={row.branchSmdt} /></td>
                         <td style={tdStyle({ textAlign: "right" })}>
-                          <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                            <SmdtBadge value={row.smdt} />
-                            {Number.isFinite(row.momentum) && <span style={{ color: row.momentum >= 0 ? "var(--G)" : "var(--R)", fontSize: 10, ...mono }}>{row.momentum >= 0 ? "+" : ""}{row.momentum.toFixed(1)}</span>}
-                          </div>
+                          <SmdtBadge value={row.smdt} />
                         </td>
                         <td style={tdStyle({ textAlign: "right" })}><CfBadge sig={row.branchSig} small /></td>
                         <td style={tdStyle({ textAlign: "right" })}><CfBadge sig={row.tickerSig} small /></td>
