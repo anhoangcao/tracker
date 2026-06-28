@@ -3,7 +3,7 @@ import { valToHmCls } from "../../styles/tokens";
 import { useSMDT, useRealtimeFeed } from "../../data/useSMDT";
 import { fmtDay, fmtFull, fmtNum } from "../../app/formatters";
 import { Card, Pagination, HM, Banner, LiveFooter } from "../../components/ui";
-import { HeatLegend, SMDTToolbarPill, SMDTFilterChips, SMDTSearchPill, linkBtn } from "../../components/ui/ModuleControls";
+import { HeatLegend, SMDTToolbarPill, SMDTSearchPill, linkBtn } from "../../components/ui/ModuleControls";
 import { IndustryPicker } from "../cash-flow-ticker/IndustryPicker";
 import { cashFlowMatrixDateTd, cashFlowMatrixTd, cashFlowMatrixTh } from "../cash-flow-ticker/cashFlowUtils";
 
@@ -56,24 +56,20 @@ export function ModSMDTNganh() {
   const { branches, datesAsc, matrix, status, error, updatedAt, refresh, applyTick } = useSMDT();
   const { connected: live } = useRealtimeFeed(applyTick);
 
-  const [tab, setTab] = useState("all");
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
   const [sessions, setSessions] = useState(12);
   const [selectedDate, setSelectedDate] = useState("");
   const [hiddenInd, setHiddenInd] = useState(() => loadSet(HIDDEN_INDUSTRIES_KEY));
 
-  const coreCount = branches.filter((b) => b.isCore).length;
-  const subCount = branches.length - coreCount;
   const industries = useMemo(() => branches.map((b) => b.label), [branches]);
 
   const visibleBranches = useMemo(() => {
     const q = query.trim().toLowerCase();
     return branches
-      .filter((b) => (tab === "all" ? true : tab === "core" ? b.isCore : !b.isCore))
       .filter((b) => !hiddenInd.has(b.label))
       .filter((b) => (q ? b.label.toLowerCase().includes(q) : true));
-  }, [branches, hiddenInd, tab, query]);
+  }, [branches, hiddenInd, query]);
 
   const datesDesc = useMemo(() => [...datesAsc].reverse(), [datesAsc]);
   const latestDate = datesDesc[0] || null;
@@ -160,15 +156,6 @@ export function ModSMDTNganh() {
           onNone={clearAllInd}
           onShowIndustries={showIndustries}
           onHideIndustries={hideIndustries}
-        />
-        <SMDTFilterChips
-          options={[
-            { id: "all", label: `Tất cả ${branches.length || ""}`.trim() },
-            { id: "core", label: `Chủ lực ${coreCount || ""}`.trim() },
-            { id: "sub", label: `Ngành phụ ${subCount || ""}`.trim() },
-          ]}
-          active={tab}
-          onChange={(v) => { setTab(v); setPage(1); }}
         />
         <SMDTToolbarPill style={{ gap: 3, padding: "0 6px", flexShrink: 0 }}>
           <button

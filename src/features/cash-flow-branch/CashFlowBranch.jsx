@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useCashFlowBranch, useRealtimeCashFlowFeed, contentToSig } from "../../data/useCashFlowBranch";
 import { fmtDay, fmtFull, fmtNum } from "../../app/formatters";
 import { Card, Pagination, Banner, LiveFooter } from "../../components/ui";
-import { SMDTToolbarPill, SMDTFilterChips, SMDTSearchPill, linkBtn } from "../../components/ui/ModuleControls";
+import { SMDTToolbarPill, SMDTSearchPill, linkBtn } from "../../components/ui/ModuleControls";
 import { CfBadge } from "../cash-flow-ticker/CfBadge";
 import { IndustryPicker } from "../cash-flow-ticker/IndustryPicker";
 import { cashFlowMatrixDateTd, cashFlowMatrixTd, cashFlowMatrixTh } from "../cash-flow-ticker/cashFlowUtils";
@@ -48,24 +48,20 @@ export function ModDongTienNganh() {
   const { branches, datesAsc, matrix, status, error, updatedAt, refresh, applyTick } = useCashFlowBranch();
   const { connected: live } = useRealtimeCashFlowFeed(applyTick);
 
-  const [tab, setTab] = useState("core");
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
   const [sessions, setSessions] = useState(12);
   const [selectedDate, setSelectedDate] = useState("");
   const [hiddenInd, setHiddenInd] = useState(() => loadSet(HIDDEN_INDUSTRIES_KEY));
 
-  const coreCount = branches.filter((b) => b.isCore).length;
-  const subCount = branches.length - coreCount;
   const industries = useMemo(() => branches.map((b) => b.label), [branches]);
 
   const visibleBranches = useMemo(() => {
     const q = query.trim().toLowerCase();
     return branches
-      .filter((b) => (tab === "core" ? b.isCore : !b.isCore))
       .filter((b) => !hiddenInd.has(b.label))
       .filter((b) => (q ? b.label.toLowerCase().includes(q) : true));
-  }, [branches, hiddenInd, tab, query]);
+  }, [branches, hiddenInd, query]);
 
   const datesDesc = useMemo(() => [...datesAsc].reverse(), [datesAsc]);
   const latestDate = datesDesc[0] || null;
@@ -171,11 +167,6 @@ export function ModDongTienNganh() {
           onNone={clearAllInd}
           onShowIndustries={showIndustries}
           onHideIndustries={hideIndustries}
-        />
-        <SMDTFilterChips
-          options={[{ id: "core", label: `Chủ lực ${coreCount || ""}`.trim() }, { id: "sub", label: `Ngành phụ ${subCount || ""}`.trim() }]}
-          active={tab}
-          onChange={(v) => { setTab(v); setPage(1); }}
         />
         <SMDTToolbarPill style={{ gap: 3, padding: "0 6px", flexShrink: 0 }}>
           <button

@@ -1,14 +1,14 @@
 import { ModDashboard } from "../features/dashboard/Dashboard";
-import { ModDoSong } from "../features/stock-wave/StockWave";
 import { ModSMDTNganh } from "../features/smdt-branch/SMDTBranch";
 import { ModDongTienNganh } from "../features/cash-flow-branch/CashFlowBranch";
 import { ModDongTienCP } from "../features/cash-flow-ticker/CashFlowTicker";
 import { ModSMDTMa } from "../features/smdt-ticker/SMDTTicker";
+import { ModTopMaManh } from "../features/top-strong-tickers/TopStrongTickers";
 import { ModDongTienTT } from "../features/market-flow/MarketFlow";
 
 /* ─────────────────────────── MODULE REGISTRY ───────────────────────────
  * Mỗi module: tiêu đề + phụ đề cho topbar, render qua <ModuleView>.
- * Dữ liệu thật: "smdt-nganh" (useSMDT) và "stock-wave"/Sóng cổ phiếu (useStockWave).
+ * Dữ liệu thật: "smdt-nganh" (useSMDT).
  * Các module còn lại dùng dữ liệu mẫu theo bản thiết kế tham khảo.
  * ─────────────────────────────────────────────────────────────────────── */
 export const MODULES = {
@@ -18,31 +18,28 @@ export const MODULES = {
   "smdt-nganh":      { title: "SMDT ngành",          sub: "Sức mạnh dòng tiền theo ngành · Heatmap" },
   "dong-tien-cp":    { title: "Dòng tiền cổ phiếu",  sub: "Tín hiệu từng mã — theo dõi nhiều phiên" },
   "smdt-ma":         { title: "SMDT cổ phiếu",       sub: "SMDT từng cổ phiếu theo ngày · realtime" },
-  "stock-wave":      { title: "Sóng cổ phiếu",       sub: "Dữ liệu thật từ getStockWave · realtime" },
-  "do-song":         { title: "Sóng cổ phiếu",       sub: "Dữ liệu thật từ getStockWave · realtime" },
+  "top-ma-manh":     { title: "Top mã mạnh",         sub: "Xếp hạng mã theo SMDT · dòng tiền mã/ngành" },
 };
 
 export const SIDEBAR_GROUPS = {
   industry: ["dong-tien-nganh", "smdt-nganh"],
-  stocks: ["dong-tien-cp", "smdt-ma", "stock-wave", "do-song"],
+  stocks: ["dong-tien-cp", "smdt-ma", "top-ma-manh"],
 };
 
 export const BOTTOM_TABS = [
   { id: "dashboard", icon: "ti-layout-grid", label: "Dashboard" },
   { id: "dong-tien-tt", icon: "ti-chart-line", label: "Thị trường" },
   { id: "smdt-nganh", icon: "ti-table", label: "SMDT" },
-  { id: "stock-wave", icon: "ti-wave-sine", label: "Sóng" },
 ];
 
 export function ModuleView({ id }) {
   switch (id) {
     case "dashboard":       return <ModDashboard />;
-    case "stock-wave":
-    case "do-song":         return <ModDoSong />;
     case "smdt-nganh":      return <ModSMDTNganh />;
     case "dong-tien-nganh": return <ModDongTienNganh />;
     case "dong-tien-cp":    return <ModDongTienCP />;
     case "smdt-ma":         return <ModSMDTMa />;
+    case "top-ma-manh":     return <ModTopMaManh />;
     case "dong-tien-tt":    return <ModDongTienTT />;
     default:                return <ModDashboard />;
   }

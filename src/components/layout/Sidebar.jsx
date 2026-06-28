@@ -94,7 +94,7 @@ export function Sidebar({ curMod, onNav, compact }) {
       <div style={{ maxHeight: cpOpen ? 200 : 0, overflow: "hidden", transition: "max-height .25s ease" }}>
         {sub("dong-tien-cp", "ti-trending-up", "Dòng tiền cổ phiếu")}
         {sub("smdt-ma", "ti-table-column", "SMDT cổ phiếu")}
-        {sub("stock-wave", "ti-wave-sine", "Sóng cổ phiếu")}
+        {sub("top-ma-manh", "ti-award", "Top mã mạnh")}
       </div>
 
       {item(null, "ti-chart-bar", "Báo cáo")}
