@@ -260,30 +260,30 @@ function DonutChart({ rows }) {
   const total = rows.length;
   const freq = new Map();
   for (const row of rows) freq.set(row.industry, (freq.get(row.industry) || 0) + 1);
-  const top = [...freq.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6);
-  const r = 26;
-  const c = 34;
+  const top = [...freq.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
+  const r = 31;
+  const c = 42;
   const circ = 2 * Math.PI * r;
   let offset = 0;
 
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
-      <svg width="68" height="68" viewBox="0 0 68 68" style={{ flexShrink: 0 }}>
-        <circle cx={c} cy={c} r={r} fill="none" stroke="var(--bdr)" strokeWidth="9" />
+    <div style={{ display: "flex", alignItems: "center", gap: 13 }}>
+      <svg width="84" height="84" viewBox="0 0 84 84" style={{ flexShrink: 0 }}>
+        <circle cx={c} cy={c} r={r} fill="none" stroke="var(--bdr)" strokeWidth="11" />
         {top.map(([name, count], index) => {
           const len = total ? (count / total) * circ : 0;
           const color = INDUSTRY_COLORS[index % INDUSTRY_COLORS.length];
-          const node = <circle key={name} cx={c} cy={c} r={r} fill="none" stroke={color} strokeWidth="9" strokeDasharray={`${len} ${circ}`} strokeDashoffset={-offset} transform={`rotate(-90 ${c} ${c})`} />;
+          const node = <circle key={name} cx={c} cy={c} r={r} fill="none" stroke={color} strokeWidth="11" strokeDasharray={`${len} ${circ}`} strokeDashoffset={-offset} transform={`rotate(-90 ${c} ${c})`} />;
           offset += len;
           return node;
         })}
-        <text x={c} y={c - 3} textAnchor="middle" fill="var(--t1)" fontSize="12" fontWeight="800">{fmtNum(total)}</text>
-        <text x={c} y={c + 9} textAnchor="middle" fill="var(--t4)" fontSize="7" fontWeight="700">MÃ</text>
+        <text x={c} y={c - 4} textAnchor="middle" fill="var(--t1)" fontSize="14" fontWeight="800">{fmtNum(total)}</text>
+        <text x={c} y={c + 10} textAnchor="middle" fill="var(--t4)" fontSize="8" fontWeight="700">MÃ</text>
       </svg>
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 5, minWidth: 0 }}>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
         {top.length ? top.map(([name, count], index) => (
-          <div key={name} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 10, color: "var(--t2)", minWidth: 0 }}>
-            <span style={{ width: 6, height: 6, borderRadius: "50%", background: INDUSTRY_COLORS[index % INDUSTRY_COLORS.length], flexShrink: 0 }} />
+          <div key={name} style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 11, color: "var(--t2)", minWidth: 0 }}>
+            <span style={{ width: 7, height: 7, borderRadius: "50%", background: INDUSTRY_COLORS[index % INDUSTRY_COLORS.length], flexShrink: 0 }} />
             <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</span>
             <span style={{ marginLeft: "auto", color: "var(--t1)", fontWeight: 800, ...mono }}>{count}</span>
           </div>
@@ -297,53 +297,92 @@ function OverviewPanel({ rows, filteredRows, counts }) {
   const total = Math.max(1, rows.length);
   const maxCount = Math.max(counts.vm || 0, counts.dt || 0, counts.tn || 0, 1);
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-      <Card style={{ padding: "12px 13px" }}>
-        <CardHeader icon="ti-chart-bar" title="Tổng quan" mb={9} />
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <Card>
+        <CardHeader icon="ti-chart-bar" title="Tổng quan" mb={11} />
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 9 }}>
           {[
-            { id: "vm", label: "Vừa mạnh", sub: "Bứt lên", color: "var(--G)" },
-            { id: "dt", label: "Duy trì", sub: "Trên ngưỡng", color: "var(--B)" },
-            { id: "tn", label: "Tiềm năng", sub: "Đang cải thiện", color: "var(--A)" },
-            { id: "all", label: "Đang lọc", sub: "Mã hiển thị", color: "var(--t1)", value: filteredRows.length },
+            { id: "vm", label: "Vừa mạnh", sub: "Bứt", color: "var(--G)" },
+            { id: "dt", label: "Duy trì", sub: "Giữ >70", color: "var(--B)" },
+            { id: "tn", label: "Tiềm năng", sub: "Cải thiện", color: "var(--A)" },
+            { id: "all", label: "Đang lọc", sub: "Hiển thị", color: "var(--t1)", value: filteredRows.length },
           ].map((item) => (
-            <div key={item.id} style={{ background: "var(--elev)", border: "0.5px solid var(--bdr)", borderRadius: 8, padding: "8px 9px" }}>
-              <div style={{ fontSize: 18, fontWeight: 800, lineHeight: 1, color: item.color, ...mono }}>{fmtNum(item.value ?? counts[item.id] ?? 0)}</div>
-              <div style={{ marginTop: 4, color: "var(--t3)", fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".05em" }}>{item.label}</div>
-              <div style={{ color: "var(--t4)", fontSize: 9 }}>{item.sub}</div>
+            <div key={item.id} style={{ background: "var(--elev)", border: "0.5px solid var(--bdr)", borderRadius: 8, padding: "10px 11px" }}>
+              <div style={{ fontSize: 21, fontWeight: 800, lineHeight: 1, color: item.color, ...mono }}>{fmtNum(item.value ?? counts[item.id] ?? 0)}</div>
+              <div style={{ marginTop: 5, color: "var(--t3)", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".05em" }}>{item.label}</div>
+              <div style={{ color: "var(--t4)", fontSize: 10 }}>{item.sub}</div>
             </div>
           ))}
         </div>
       </Card>
-      <Card style={{ padding: "12px 13px" }}>
-        <CardHeader icon="ti-chart-donut" title="Phân bố theo ngành" mb={9} />
+      <Card>
+        <CardHeader icon="ti-chart-donut" title="Phân bố theo ngành" mb={11} />
         <DonutChart rows={filteredRows} />
       </Card>
-      <Card style={{ padding: "12px 13px" }}>
-        <CardHeader icon="ti-stairs-up" title="Phân bố trạng thái" mb={9} />
+      <Card>
+        <CardHeader icon="ti-stairs-up" title="Phân bố trạng thái" mb={11} />
         {["vm", "dt", "tn"].map((id) => {
           const meta = STATUS_META[id];
           const value = counts[id] || 0;
           return (
-            <div key={id} style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 8 }}>
-              <span style={{ width: 62, color: meta.color, fontSize: 10, fontWeight: 700 }}>{meta.label}</span>
-              <div style={{ flex: 1, height: 5, borderRadius: 3, overflow: "hidden", background: "var(--elev)" }}>
+            <div key={id} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 9 }}>
+              <span style={{ width: 68, color: meta.color, fontSize: 11, fontWeight: 700 }}>{meta.label}</span>
+              <div style={{ flex: 1, height: 6, borderRadius: 3, overflow: "hidden", background: "var(--elev)" }}>
                 <div style={{ width: `${(value / maxCount) * 100}%`, height: "100%", borderRadius: 3, background: meta.color }} />
               </div>
-              <span style={{ width: 44, textAlign: "right", color: "var(--t2)", fontSize: 10, ...mono }}>{Math.round((value / total) * 100)}%</span>
+              <span style={{ width: 60, textAlign: "right", color: "var(--t2)", fontSize: 11, ...mono }}>{Math.round((value / total) * 100)}%</span>
             </div>
           );
         })}
       </Card>
-      <Card style={{ padding: "12px 13px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 7, color: "var(--B)", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".06em" }}>
-          <i className="ti ti-info-circle" style={{ fontSize: 13 }} />
+      <Card>
+        <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 8, color: "var(--B)", fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".06em" }}>
+          <i className="ti ti-info-circle" style={{ fontSize: 14 }} />
           Ghi chú
         </div>
-        <div style={{ background: "var(--Bs)", border: "0.5px solid var(--Bb)", borderRadius: 8, padding: "8px 10px", color: "var(--t3)", fontSize: 10, lineHeight: 1.55 }}>
-          Vừa mạnh: mới vượt ngưỡng 70/100 hoặc tăng tốc mạnh. Duy trì: SMDT mã vẫn trên 70. Tiềm năng: dưới 70 nhưng đang cải thiện hoặc được dòng tiền/ngành ủng hộ.
+        <div style={{ background: "var(--Bs)", border: "0.5px solid var(--Bb)", borderRadius: 8, padding: "9px 11px", color: "var(--t3)", fontSize: 11, lineHeight: 1.6, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical" }}>
+          VM: mới vượt 70/100 hoặc tăng tốc. DT: giữ trên 70. TN: đang cải thiện hoặc có dòng tiền/ngành ủng hộ.
         </div>
       </Card>
+    </div>
+  );
+}
+
+function TopMetric({ label, children }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
+      <span style={{ fontSize: 9, fontWeight: 800, color: "var(--t4)", textTransform: "uppercase", letterSpacing: ".06em" }}>{label}</span>
+      <span style={{ display: "inline-flex" }}>{children}</span>
+    </div>
+  );
+}
+
+function TopCard({ row, rank }) {
+  return (
+    <div style={{ background: "var(--surf)", border: "0.5px solid var(--bdr)", borderRadius: 11, padding: "12px 13px" }}>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 0 }}>
+          <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 26, height: 26, padding: "0 6px", borderRadius: 7, background: "var(--elev)", border: "0.5px solid var(--bdr)", color: "var(--t3)", fontSize: 12, fontWeight: 800, ...mono }}>{rank}</span>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ color: "var(--B)", fontSize: 15, fontWeight: 900 }}>{row.ticker}</div>
+            {row.name !== row.ticker && (
+              <div style={{ color: "var(--t4)", fontSize: 11, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 180 }}>{row.name}</div>
+            )}
+          </div>
+        </div>
+        <StatusBadge status={row.status} />
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 9, color: "var(--t2)", fontSize: 12 }}>
+        <i className="ti ti-building-community" style={{ fontSize: 13, color: "var(--t4)", flexShrink: 0 }} />
+        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.industry}</span>
+        <span style={{ marginLeft: "auto", color: "var(--t1)", fontWeight: 700, ...mono }}>{money(row.price)}</span>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "11px 10px", marginTop: 11, paddingTop: 11, borderTop: "0.5px solid var(--bdrs)" }}>
+        <TopMetric label="SMDT mã"><SmdtBadge value={row.smdt} /></TopMetric>
+        <TopMetric label="SMDT ngành"><SmdtBadge value={row.branchSmdt} /></TopMetric>
+        <TopMetric label="TH cổ phiếu"><CfBadge sig={row.tickerSig} small /></TopMetric>
+        <TopMetric label="TH ngành"><CfBadge sig={row.branchSig} small /></TopMetric>
+      </div>
     </div>
   );
 }
@@ -595,7 +634,7 @@ export function ModTopMaManh() {
       {branchPath.status === "error" && !Object.keys(branchPath.tickerToBranch).length && (
         <Banner tone="error">Lỗi tải danh sách ngành: {branchPath.error} <button onClick={branchPath.refresh} style={linkBtn}>Thử lại</button></Banner>
       )}
-      <div style={{ display: "grid", gridTemplateColumns: narrow ? "1fr" : "minmax(0,1fr) 260px", gap: 12, alignItems: "start" }}>
+      <div style={{ display: "grid", gridTemplateColumns: narrow ? "1fr" : "minmax(0,1fr) 272px", gap: 12, alignItems: "start" }}>
         <div style={{ minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap", marginBottom: 10 }}>
             <SMDTToolbarPill style={{ gap: 3, padding: "0 6px", flexShrink: 0 }}>
@@ -654,7 +693,7 @@ export function ModTopMaManh() {
               onClick={exportCsv}
               style={{ marginLeft: "auto", height: 32, padding: "0 12px", borderRadius: 9, background: "var(--B)", color: "#fff", border: "none", fontSize: 12, fontWeight: 800, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6, whiteSpace: "nowrap", fontFamily: "inherit", flexShrink: 0 }}
             >
-              <i className="ti ti-file-spreadsheet" style={{ fontSize: 15 }} />Xuất Excel
+              <i className="ti ti-file-spreadsheet" style={{ fontSize: 15 }} />Xuất
             </button>
           </div>
 
@@ -671,6 +710,16 @@ export function ModTopMaManh() {
           )}
 
           <Card noPad>
+            {narrow ? (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 9, padding: 12 }}>
+                {pageRows.map((row, index) => (
+                  <TopCard key={row.ticker} row={row} rank={(safePage - 1) * pageSize + index + 1} />
+                ))}
+                {pageRows.length === 0 && (
+                  <div style={{ padding: 28, textAlign: "center", color: "var(--t3)", fontSize: 13 }}>Không có mã nào thỏa điều kiện.</div>
+                )}
+              </div>
+            ) : (
             <div style={{ overflowX: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, minWidth: 910 }}>
                 <thead>
@@ -716,6 +765,7 @@ export function ModTopMaManh() {
                 </tbody>
               </table>
             </div>
+            )}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "11px 13px", borderTop: "0.5px solid var(--bdr)", flexWrap: "wrap" }}>
               <span style={{ color: "var(--t3)", fontSize: 11 }}>
                 Hiển thị {filteredRows.length ? (safePage - 1) * pageSize + 1 : 0}-{Math.min(safePage * pageSize, filteredRows.length)} trong {fmtNum(filteredRows.length)} mã
