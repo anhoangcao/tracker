@@ -404,6 +404,26 @@ export function ModTopMaManh() {
     return map;
   }, [activeCashBucket?.rows]);
 
+  const tickerNameByKey = useMemo(() => {
+    const map = new Map();
+    for (const tk of smdtTicker.tickers) map.set(tk.key, tk.name || tk.key);
+    return map;
+  }, [smdtTicker.tickers]);
+
+  const tickerPool = useMemo(() => {
+    const allowed = cashTicker.allowedTickers?.length
+      ? cashTicker.allowedTickers
+      : [...new Set([...(activeCashBucket?.rows || []).map((row) => row.ticker), ...smdtTicker.tickers.map((tk) => tk.key)])];
+    const seen = new Set();
+    return allowed.flatMap((ticker) => {
+      if (!ticker || seen.has(ticker)) return [];
+      seen.add(ticker);
+      const industry = branchPath.tickerToBranch[ticker];
+      if (!industry) return [];
+      return [{ ticker, name: tickerNameByKey.get(ticker) || ticker, industry }];
+    });
+  }, [activeCashBucket?.rows, branchPath.tickerToBranch, cashTicker.allowedTickers, smdtTicker.tickers, tickerNameByKey]);
+
   const branchSmdtLookup = useMemo(
     () => makeIndustryLookup(smdtBranch.branches, smdtBranch.matrix, activeBranchSmdtDate, (v) => (Number.isFinite(v) ? v : null)),
     [activeBranchSmdtDate, smdtBranch.branches, smdtBranch.matrix]
@@ -415,14 +435,14 @@ export function ModTopMaManh() {
 
   const rows = useMemo(() => {
     const data = [];
-    for (const tk of smdtTicker.tickers) {
-      const ticker = tk.key;
+    for (const tk of tickerPool) {
+      const ticker = tk.ticker;
       const smdt = smdtTicker.matrix[ticker]?.[activeSmdtDate];
       if (!Number.isFinite(smdt)) continue;
       const prevSmdt = smdtTicker.matrix[ticker]?.[prevSmdtDate];
       const prev2Smdt = smdtTicker.matrix[ticker]?.[prev2SmdtDate];
       const cash = cashByTicker.get(ticker);
-      const industry = branchPath.tickerToBranch[ticker] || "Khác";
+      const industry = tk.industry;
       const branchSmdt = lookupIndustry(branchSmdtLookup, industry);
       const branchSig = lookupIndustry(branchSigLookup, industry);
       const tickerSig = tickerContentToSig(cash?.content || "");
@@ -447,7 +467,7 @@ export function ModTopMaManh() {
       });
     }
     return data.sort((a, b) => b.score - a.score || b.smdt - a.smdt || a.ticker.localeCompare(b.ticker));
-  }, [activeSmdtDate, branchPath.tickerToBranch, branchSigLookup, branchSmdtLookup, cashByTicker, prev2SmdtDate, prevSmdtDate, smdtTicker.matrix, smdtTicker.tickers]);
+  }, [activeSmdtDate, branchSigLookup, branchSmdtLookup, cashByTicker, prev2SmdtDate, prevSmdtDate, smdtTicker.matrix, tickerPool]);
 
   const industries = useMemo(() => [...new Set(rows.map((row) => row.industry))].sort((a, b) => a.localeCompare(b, "vi")), [rows]);
   const industrySig = useMemo(() => {
@@ -634,7 +654,7 @@ export function ModTopMaManh() {
               onClick={exportCsv}
               style={{ marginLeft: "auto", height: 32, padding: "0 12px", borderRadius: 9, background: "var(--B)", color: "#fff", border: "none", fontSize: 12, fontWeight: 800, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6, whiteSpace: "nowrap", fontFamily: "inherit", flexShrink: 0 }}
             >
-              <i className="ti ti-file-spreadsheet" style={{ fontSize: 15 }} />Xuất
+              <i className="ti ti-file-spreadsheet" style={{ fontSize: 15 }} />Xuất Excel
             </button>
           </div>
 
@@ -665,7 +685,6 @@ export function ModTopMaManh() {
                 <tbody>
                   {pageRows.map((row, index) => {
                     const rank = (safePage - 1) * pageSize + index + 1;
-                    const industryColor = INDUSTRY_COLORS[industries.indexOf(row.industry) % INDUSTRY_COLORS.length] || "var(--t4)";
                     return (
                       <tr key={row.ticker}>
                         <td style={tdStyle({ color: "var(--t4)", fontWeight: 800, paddingLeft: 13 })}>{rank}</td>
@@ -677,7 +696,6 @@ export function ModTopMaManh() {
                         </td>
                         <td style={tdStyle({ color: "var(--t2)" })}>
                           <span style={{ display: "inline-flex", alignItems: "center", gap: 6, maxWidth: 190 }}>
-                            <span style={{ width: 7, height: 7, borderRadius: "50%", background: industryColor, flexShrink: 0 }} />
                             <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.industry}</span>
                           </span>
                         </td>
