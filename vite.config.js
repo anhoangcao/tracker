@@ -14,6 +14,9 @@ let cashFlowTickerDevRefreshPromise = null;
 let totalTradeTickerDevCache = null;
 let totalTradeTickerDevLastFetched = 0;
 let totalTradeTickerDevRefreshPromise = null;
+let totalTradeDevCache = null;
+let totalTradeDevLastFetched = 0;
+let totalTradeDevRefreshPromise = null;
 let smdtTickerDevCache = null;
 let smdtTickerDevLastFetched = 0;
 let branchPathDevCache = null;
@@ -93,7 +96,7 @@ async function refreshCashFlowTickerDevCache() {
   return cashFlowTickerDevRefreshPromise;
 }
 
-async function fetchTotalTradeTickersFromSource() {
+async function fetchTotalTradeFromSource() {
   const response = await fetch("https://stocktraders.vn/service/data/getTotalTrade", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -108,6 +111,13 @@ async function fetchTotalTradeTickersFromSource() {
   if (code && code !== "S0000") throw new Error(`TotalTrade API response code ${code}`);
   if (!Array.isArray(stockTotals)) throw new Error("TotalTrade API response missing stockTotals");
 
+  return data;
+}
+
+async function fetchTotalTradeTickersFromSource() {
+  const data = await fetchTotalTradeFromSource();
+  const reply = data?.TotalTradeReply || data?.TotalTradeRequest || {};
+  const stockTotals = reply?.stockTotals;
   return stockTotals
     .map((item) => item?.ticker || item?.code || item?.symbol)
     .filter(Boolean)
@@ -146,6 +156,27 @@ async function getTotalTradeTickers({ fresh = false, waitForInitial = false } = 
 
   refreshTotalTradeTickersDevCache();
   return totalTradeTickerDevCache || [];
+}
+
+async function refreshTotalTradeDevCache() {
+  if (totalTradeDevRefreshPromise) return totalTradeDevRefreshPromise;
+
+  totalTradeDevRefreshPromise = fetchTotalTradeFromSource()
+    .then((data) => {
+      totalTradeDevCache = data;
+      totalTradeDevLastFetched = Date.now();
+      return data;
+    })
+    .catch((err) => {
+      console.error("Local dev total trade proxy fetch error:", err);
+      if (!totalTradeDevCache) throw err;
+      return totalTradeDevCache;
+    })
+    .finally(() => {
+      totalTradeDevRefreshPromise = null;
+    });
+
+  return totalTradeDevRefreshPromise;
 }
 
 function filterCashTickerDatas(datas, allowedTickerSet) {
@@ -403,6 +434,32 @@ function smdtDevPlugin() {
             res.end(JSON.stringify(out));
           } catch (err) {
             res.statusCode = 500;
+            res.setHeader("Content-Type", "application/json");
+            res.end(JSON.stringify({ error: err.message }));
+          }
+        } else if (reqUrl.startsWith("/api/total-trade")) {
+          const host = req.headers.host || "localhost:3000";
+          const parsedUrl = new URL(reqUrl, `http://${host}`);
+          const wantsFresh = parsedUrl.searchParams.get("fresh") === "1" || parsedUrl.searchParams.get("fresh") === "true";
+          const now = Date.now();
+
+          try {
+            if (!totalTradeDevCache || wantsFresh || now - totalTradeDevLastFetched > TOTAL_TRADE_CACHE_DURATION) {
+              await refreshTotalTradeDevCache();
+            }
+            const reply = totalTradeDevCache?.TotalTradeReply || totalTradeDevCache?.TotalTradeRequest || {};
+            const out = {
+              TotalTradeReply: {
+                codeReply: reply.codeReply || { codeID: "S0000", codeName: "SUCSESS" },
+                stockTotals: Array.isArray(reply.stockTotals) ? reply.stockTotals : []
+              }
+            };
+            res.statusCode = 200;
+            res.setHeader("Content-Type", "application/json");
+            res.setHeader("Cache-Control", wantsFresh ? "no-store, max-age=0" : "public, max-age=0, s-maxage=300, stale-while-revalidate=600");
+            res.end(JSON.stringify(out));
+          } catch (err) {
+            res.statusCode = 502;
             res.setHeader("Content-Type", "application/json");
             res.end(JSON.stringify({ error: err.message }));
           }

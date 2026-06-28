@@ -8,6 +8,7 @@ import { useCashFlowTicker, useRealtimeCashFlowTickerFeed, tickerContentToSig } 
 import { useSMDT, useRealtimeFeed as useRealtimeSMDTBranchFeed } from "../../data/useSMDT";
 import { useCashFlowBranch, useRealtimeCashFlowFeed, contentToSig } from "../../data/useCashFlowBranch";
 import { useBranchPath } from "../../data/useBranchPath";
+import { useTotalTrade } from "../../data/useTotalTrade";
 import { Card, CardHeader, Pagination, Banner, LiveFooter } from "../../components/ui";
 import { SMDTSearchPill, SMDTToolbarPill, linkBtn } from "../../components/ui/ModuleControls";
 import { IndustryPicker } from "../cash-flow-ticker/IndustryPicker";
@@ -119,6 +120,13 @@ function lookupIndustry(map, industry) {
 
 function money(v) {
   return Number.isFinite(v) && v > 0 ? fmtNum(v) : "—";
+}
+
+function findTradePoint(tradeRow, dateValue) {
+  if (!tradeRow || !dateValue) return null;
+  const dates = Object.keys(tradeRow).sort().reverse();
+  const target = dates.find((date) => toDateInputValue(date) <= dateValue);
+  return target ? tradeRow[target] : null;
 }
 
 function SmdtBadge({ value }) {
@@ -340,8 +348,8 @@ function OverviewPanel({ rows, filteredRows, counts }) {
           <i className="ti ti-info-circle" style={{ fontSize: 14 }} />
           Ghi chú
         </div>
-        <div style={{ background: "var(--Bs)", border: "0.5px solid var(--Bb)", borderRadius: 8, padding: "9px 11px", color: "var(--t3)", fontSize: 11, lineHeight: 1.6, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical" }}>
-          VM: mới vượt 70/100 hoặc tăng tốc. DT: giữ trên 70. TN: đang cải thiện hoặc có dòng tiền/ngành ủng hộ.
+        <div style={{ background: "var(--Bs)", border: "0.5px solid var(--Bb)", borderRadius: 8, padding: "9px 11px", color: "var(--t3)", fontSize: 11, lineHeight: 1.6 }}>
+          Vừa mạnh: mới vượt ngưỡng 70/100 hoặc tăng tốc mạnh. Duy trì: SMDT mã vẫn trên 70. Tiềm năng: dưới 70 nhưng đang cải thiện hoặc được dòng tiền/ngành ủng hộ.
         </div>
       </Card>
     </div>
@@ -394,6 +402,7 @@ export function ModTopMaManh() {
   const smdtBranch = useSMDT();
   const cashBranch = useCashFlowBranch();
   const branchPath = useBranchPath();
+  const totalTrade = useTotalTrade();
 
   const liveSmdtTicker = useRealtimeSMDTTickerFeed(smdtTicker.applyTick);
   const liveCashTicker = useRealtimeCashFlowTickerFeed(cashTicker.applyTick);
@@ -434,7 +443,7 @@ export function ModTopMaManh() {
   const activeBranchCashIndex = useMemo(() => findDateIndex(cashBranchDatesDesc, dateInputValue), [cashBranchDatesDesc, dateInputValue]);
   const activeBranchSmdtDate = activeBranchSmdtIndex >= 0 ? smdtBranchDatesDesc[activeBranchSmdtIndex] : "";
   const activeBranchCashDate = activeBranchCashIndex >= 0 ? cashBranchDatesDesc[activeBranchCashIndex] : "";
-  const updatedAt = smdtTicker.updatedAt || cashTicker.updatedAt || smdtBranch.updatedAt || cashBranch.updatedAt || branchPath.updatedAt;
+  const updatedAt = smdtTicker.updatedAt || cashTicker.updatedAt || smdtBranch.updatedAt || cashBranch.updatedAt || totalTrade.updatedAt || branchPath.updatedAt;
   const live = liveSmdtTicker.connected || liveCashTicker.connected || liveSmdtBranch.connected || liveCashBranch.connected;
 
   const cashByTicker = useMemo(() => {
@@ -481,6 +490,7 @@ export function ModTopMaManh() {
       const prevSmdt = smdtTicker.matrix[ticker]?.[prevSmdtDate];
       const prev2Smdt = smdtTicker.matrix[ticker]?.[prev2SmdtDate];
       const cash = cashByTicker.get(ticker);
+      const tradePoint = findTradePoint(totalTrade.matrix[ticker], dateInputValue);
       const industry = tk.industry;
       const branchSmdt = lookupIndustry(branchSmdtLookup, industry);
       const branchSig = lookupIndustry(branchSigLookup, industry);
@@ -493,7 +503,7 @@ export function ModTopMaManh() {
         ticker,
         name: tk.name || ticker,
         industry,
-        price: cash?.price,
+        price: tradePoint?.price,
         smdt,
         prevSmdt,
         prev2Smdt,
@@ -506,9 +516,12 @@ export function ModTopMaManh() {
       });
     }
     return data.sort((a, b) => b.score - a.score || b.smdt - a.smdt || a.ticker.localeCompare(b.ticker));
-  }, [activeSmdtDate, branchSigLookup, branchSmdtLookup, cashByTicker, prev2SmdtDate, prevSmdtDate, smdtTicker.matrix, tickerPool]);
+  }, [activeSmdtDate, branchSigLookup, branchSmdtLookup, cashByTicker, dateInputValue, prev2SmdtDate, prevSmdtDate, smdtTicker.matrix, tickerPool, totalTrade.matrix]);
 
-  const industries = useMemo(() => [...new Set(rows.map((row) => row.industry))].sort((a, b) => a.localeCompare(b, "vi")), [rows]);
+  const industries = useMemo(
+    () => [...new Set(tickerPool.map((row) => row.industry))].sort((a, b) => a.localeCompare(b, "vi")),
+    [tickerPool]
+  );
   const industrySig = useMemo(() => {
     const map = {};
     for (const ind of industries) map[ind] = lookupIndustry(branchSigLookup, ind);
@@ -634,6 +647,9 @@ export function ModTopMaManh() {
       {branchPath.status === "error" && !Object.keys(branchPath.tickerToBranch).length && (
         <Banner tone="error">Lỗi tải danh sách ngành: {branchPath.error} <button onClick={branchPath.refresh} style={linkBtn}>Thử lại</button></Banner>
       )}
+      {totalTrade.status === "error" && !Object.keys(totalTrade.matrix).length && (
+        <Banner tone="error">Lỗi tải giá từ TotalTrade: {totalTrade.error} <button onClick={totalTrade.refresh} style={linkBtn}>Thử lại</button></Banner>
+      )}
       <div style={{ display: "grid", gridTemplateColumns: narrow ? "1fr" : "minmax(0,1fr) 272px", gap: 12, alignItems: "start" }}>
         <div style={{ minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap", marginBottom: 10 }}>
@@ -738,13 +754,13 @@ export function ModTopMaManh() {
                       <tr key={row.ticker}>
                         <td style={tdStyle({ color: "var(--t4)", fontWeight: 800, paddingLeft: 13 })}>{rank}</td>
                         <td style={tdStyle()}>
-                          <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                            <span style={{ color: "var(--B)", fontSize: 13, fontWeight: 900 }}>{row.ticker}</span>
-                            {row.name !== row.ticker && <span style={{ color: "var(--t4)", fontSize: 10, maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.name}</span>}
+                          <div title={row.name} style={{ display: "flex", flexDirection: "column", gap: 1, maxWidth: 74, minWidth: 0 }}>
+                            <span style={{ color: "var(--B)", fontSize: 12, fontWeight: 900, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.ticker}</span>
+                            {row.name !== row.ticker && <span style={{ color: "var(--t4)", fontSize: 9, maxWidth: 74, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.name}</span>}
                           </div>
                         </td>
                         <td style={tdStyle({ color: "var(--t2)" })}>
-                          <span style={{ display: "inline-flex", alignItems: "center", gap: 6, maxWidth: 190 }}>
+                          <span title={row.industry} style={{ display: "inline-flex", alignItems: "center", gap: 6, maxWidth: 112 }}>
                             <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.industry}</span>
                           </span>
                         </td>
