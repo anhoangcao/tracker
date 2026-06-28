@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useCashFlowBranch, useRealtimeCashFlowFeed, contentToSig } from "../../data/useCashFlowBranch";
 import { fmtDay, fmtFull, fmtNum } from "../../app/formatters";
+import { useNarrow } from "../../app/useNarrow";
 import { Card, Pagination, Banner, LiveFooter } from "../../components/ui";
+import { MatrixCards } from "../../components/ui/MatrixCards";
 import { SMDTToolbarPill, SMDTSearchPill, linkBtn } from "../../components/ui/ModuleControls";
 import { CfBadge } from "../cash-flow-ticker/CfBadge";
 import { IndustryPicker } from "../cash-flow-ticker/IndustryPicker";
@@ -45,6 +47,7 @@ function findDateIndex(datesDesc, dateValue) {
 }
 
 export function ModDongTienNganh() {
+  const narrow = useNarrow();
   const { branches, datesAsc, matrix, status, error, updatedAt, refresh, applyTick } = useCashFlowBranch();
   const { connected: live } = useRealtimeCashFlowFeed(applyTick);
 
@@ -233,43 +236,65 @@ export function ModDongTienNganh() {
         <Banner tone="error">Lỗi tải dữ liệu: {error} <button onClick={refresh} style={linkBtn}>Thử lại</button></Banner>
       )}
 
-      <Card noPad>
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, minWidth: Math.max(700, 150 + colCount * 104) }}>
-            <thead>
-              <tr>
-                <th style={{ ...cashFlowMatrixTh, position: "sticky", left: 0, zIndex: 4, width: 150, textAlign: "left" }}>NGÀY ↓</th>
-                {visibleBranches.map((b) => (
-                  <th key={b.key} title={b.key} style={{ ...cashFlowMatrixTh, minWidth: 104 }}>{b.label.toUpperCase()}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {pageDates.map((date, di) => {
-                const isLatest = di === 0 && safePage === 1;
-                const isActive = dateInputValue === toDateInputValue(date);
-                const dateBg = isActive || isLatest ? "var(--elev)" : "var(--surf)";
-                return (
-                  <tr key={date}>
-                    <td style={{ ...cashFlowMatrixDateTd, position: "sticky", left: 0, zIndex: 2, background: dateBg, fontWeight: isActive || isLatest ? 800 : 700 }}>
-                      {fmtDay(date)}
-                      {isLatest && <span style={{ fontSize: 8, background: "var(--Bs)", color: "var(--B)", borderRadius: 3, padding: "1px 5px", marginLeft: 5, fontWeight: 800 }}>HN</span>}
-                    </td>
-                    {visibleBranches.map((b) => (
-                      <td key={b.key} style={{ ...cashFlowMatrixTd, background: isActive || isLatest ? "var(--elev)" : cashFlowMatrixTd.background }}>
-                        <CfBadge sig={contentToSig(matrix[b.key]?.[date])} compact />
+      {narrow ? (
+        <MatrixCards
+          activeDate={activeDate}
+          activeLabel={activeDate ? fmtDay(activeDate) : null}
+          sessions={pageDates.map((date, di) => ({
+            date,
+            label: fmtDay(date),
+            isActive: dateInputValue === toDateInputValue(date),
+            isLatest: di === 0 && safePage === 1,
+          }))}
+          groups={[{
+            industry: null,
+            entities: visibleBranches.map((b) => ({
+              key: b.key,
+              title: b.label,
+              render: (date, variant) => <CfBadge sig={contentToSig(matrix[b.key]?.[date])} small={variant === "sm"} />,
+            })),
+          }]}
+          emptyText="Không tìm thấy ngành phù hợp."
+        />
+      ) : (
+        <Card noPad>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, minWidth: Math.max(700, 150 + colCount * 104) }}>
+              <thead>
+                <tr>
+                  <th style={{ ...cashFlowMatrixTh, position: "sticky", left: 0, zIndex: 4, width: 150, textAlign: "left" }}>NGÀY ↓</th>
+                  {visibleBranches.map((b) => (
+                    <th key={b.key} title={b.key} style={{ ...cashFlowMatrixTh, minWidth: 104 }}>{b.label.toUpperCase()}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {pageDates.map((date, di) => {
+                  const isLatest = di === 0 && safePage === 1;
+                  const isActive = dateInputValue === toDateInputValue(date);
+                  const dateBg = isActive || isLatest ? "var(--elev)" : "var(--surf)";
+                  return (
+                    <tr key={date}>
+                      <td style={{ ...cashFlowMatrixDateTd, position: "sticky", left: 0, zIndex: 2, background: dateBg, fontWeight: isActive || isLatest ? 800 : 700 }}>
+                        {fmtDay(date)}
+                        {isLatest && <span style={{ fontSize: 8, background: "var(--Bs)", color: "var(--B)", borderRadius: 3, padding: "1px 5px", marginLeft: 5, fontWeight: 800 }}>HN</span>}
                       </td>
-                    ))}
-                  </tr>
-                );
-              })}
-              {visibleBranches.length === 0 && (
-                <tr><td colSpan={2} style={{ padding: 28, textAlign: "center", color: "var(--t3)" }}>Không tìm thấy ngành phù hợp.</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </Card>
+                      {visibleBranches.map((b) => (
+                        <td key={b.key} style={{ ...cashFlowMatrixTd, background: isActive || isLatest ? "var(--elev)" : cashFlowMatrixTd.background }}>
+                          <CfBadge sig={contentToSig(matrix[b.key]?.[date])} compact />
+                        </td>
+                      ))}
+                    </tr>
+                  );
+                })}
+                {visibleBranches.length === 0 && (
+                  <tr><td colSpan={2} style={{ padding: 28, textAlign: "center", color: "var(--t3)" }}>Không tìm thấy ngành phù hợp.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 12, flexWrap: "wrap" }}>
         <Pagination page={safePage} totalPages={totalPages} onChange={setPage} />

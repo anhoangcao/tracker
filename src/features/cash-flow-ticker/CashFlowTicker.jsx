@@ -2,8 +2,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useCashFlowTicker, useRealtimeCashFlowTickerFeed, tickerContentToSig } from "../../data/useCashFlowTicker";
 import { useCashFlowBranch, useRealtimeCashFlowFeed, contentToSig } from "../../data/useCashFlowBranch";
 import { useBranchPath } from "../../data/useBranchPath";
-import { fmtFull, fmtNum } from "../../app/formatters";
+import { fmtDay, fmtFull, fmtNum } from "../../app/formatters";
+import { useNarrow } from "../../app/useNarrow";
 import { Card, Pagination, Banner, LiveFooter } from "../../components/ui";
+import { MatrixCards } from "../../components/ui/MatrixCards";
 import { SMDTToolbarPill, SMDTSearchPill, InlineFilterChips, linkBtn } from "../../components/ui/ModuleControls";
 import { CashFlowMatrixTable } from "./CashFlowMatrixTable";
 import { CfBadge } from "./CfBadge";
@@ -70,6 +72,7 @@ function findDateIndex(datesDesc, dateValue) {
 }
 
 export function ModDongTienCP() {
+  const narrow = useNarrow();
   const { latest, buckets, allowedTickers, status, error, updatedAt, refresh, applyTick } = useCashFlowTicker();
   const { connected: live } = useRealtimeCashFlowTickerFeed(applyTick);
   const {
@@ -376,21 +379,57 @@ export function ModDongTienCP() {
         </button>
       </div>
 
-      <Card noPad>
-        <CashFlowMatrixTable
-          collapsedInd={collapsedInd}
-          colCount={colCount}
-          groupStarts={groupStarts}
-          groups={groups}
-          matrix={matrix}
-          pageDates={pageDates}
-          safePage={safePage}
-          activeDate={dateInputValue}
-          branchIndustrySigByDate={branchIndustrySigByDate}
-          toggleCollapse={toggleCollapse}
-          visibleTickers={visibleTickers}
+      {narrow ? (
+        <MatrixCards
+          activeDate={activeBucket?.date || latestDate}
+          activeLabel={(activeBucket?.date || latestDate) ? fmtDay(activeBucket?.date || latestDate) : null}
+          sessions={pageDates.map((bucket, di) => ({
+            date: bucket.date,
+            label: fmtDay(bucket.date),
+            isActive: dateInputValue === toDateInputValue(bucket.date),
+            isLatest: di === 0 && safePage === 1,
+          }))}
+          groups={groups.map((g) => ({
+            industry: g.industry,
+            count: g.tickers.length,
+            collapsed: collapsedInd.has(g.industry),
+            onToggle: () => toggleCollapse(g.industry),
+            entities: collapsedInd.has(g.industry)
+              ? [{
+                  key: `${g.industry}__sum`,
+                  title: "Tổng hợp",
+                  subtitle: `${g.tickers.length} mã`,
+                  render: (date, variant) => (
+                    <CfBadge sig={branchIndustrySigByDate?.[g.industry]?.[toDateInputValue(date)] || null} small={variant === "sm"} />
+                  ),
+                }]
+              : g.tickers.map((ticker) => ({
+                  key: ticker,
+                  title: ticker,
+                  render: (date, variant) => (
+                    <CfBadge sig={tickerContentToSig(matrix[date]?.[ticker])} small={variant === "sm"} />
+                  ),
+                })),
+          }))}
+          emptyText="Không có mã phù hợp."
         />
-      </Card>
+      ) : (
+        <Card noPad>
+          <CashFlowMatrixTable
+            collapsedInd={collapsedInd}
+            colCount={colCount}
+            groupStarts={groupStarts}
+            groups={groups}
+            matrix={matrix}
+            pageDates={pageDates}
+            safePage={safePage}
+            activeDate={dateInputValue}
+            branchIndustrySigByDate={branchIndustrySigByDate}
+            toggleCollapse={toggleCollapse}
+            visibleTickers={visibleTickers}
+          />
+        </Card>
+      )}
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
         <CashFlowLegend />

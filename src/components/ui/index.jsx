@@ -255,6 +255,32 @@ export function HM({ cls, val }) {
   );
 }
 
+/* Ô heatmap thu nhỏ — dùng cho dải phiên trong card mobile. */
+export function HMmini({ cls, val }) {
+  const { t } = useTheme();
+  if (!cls) return <span style={{ color: "var(--t4)", fontSize: 11 }}>—</span>;
+  const s = hmStyle(cls, t);
+  return (
+    <span
+      style={{
+        ...mono,
+        borderRadius: 5,
+        padding: "2px 6px",
+        textAlign: "center",
+        fontSize: 10,
+        fontWeight: 700,
+        display: "inline-block",
+        minWidth: 38,
+        background: s.bg,
+        border: `0.5px solid ${s.border}`,
+        color: s.color,
+      }}
+    >
+      {val}
+    </span>
+  );
+}
+
 /* Pill tín hiệu dòng tiền. */
 export function Sig({ type, compact }) {
   const { t } = useTheme();

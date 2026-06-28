@@ -3,6 +3,7 @@ import { useTheme } from "../../theme";
 import { mono } from "../../styles/tokens";
 import { useStockWave, useRealtimeStockWaveFeed } from "../../data/useStockWave";
 import { fmtDay, fmtFull, fmtNum, pct, signed } from "../../app/formatters";
+import { useNarrow } from "../../app/useNarrow";
 import { Card, CardHeader, TableWrap, THead, Pagination, Banner, LiveFooter } from "../../components/ui";
 import { linkBtn } from "../../components/ui/ModuleControls";
 import { WaveDonut } from "./WaveDonut";
@@ -142,7 +143,44 @@ function FlowBalance({ row, t }) {
   );
 }
 
+function WaveCardMetric({ label, children }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 5, minWidth: 0 }}>
+      <span style={{ fontSize: 9, fontWeight: 800, color: "var(--t4)", textTransform: "uppercase", letterSpacing: ".05em" }}>{label}</span>
+      {children}
+    </div>
+  );
+}
+
+function WaveHistoryCard({ row, latest, t }) {
+  return (
+    <div style={{ background: latest ? "var(--elev)" : "var(--surf)", border: `0.5px solid ${latest ? t.Bb : "var(--bdr)"}`, borderRadius: 11, padding: "12px 13px" }}>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+            <span style={{ color: "var(--t1)", fontSize: 14, fontWeight: 800 }}>{fmtDay(row.date)}</span>
+            {latest && <span style={{ fontSize: 8, background: "var(--Bs)", color: "var(--B)", borderRadius: 4, padding: "2px 5px", fontWeight: 800 }}>HN</span>}
+          </div>
+          <div style={{ marginTop: 2, fontSize: 10, color: "var(--t4)" }}>{fmtFull(row.date)}</div>
+        </div>
+        <ReliabilityPill value={row.reliability} t={t} />
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(66px, 1fr))", gap: "11px 8px", marginTop: 11, paddingTop: 11, borderTop: "0.5px solid var(--bdrs)" }}>
+        <WaveCardMetric label="Chờ mua"><HistoryValue value={row.waitbuy} color={t.G} bg={t.Gs} /></WaveCardMetric>
+        <WaveCardMetric label="Mua"><HistoryValue value={row.buy} color={t.MU} bg={t.MUs} /></WaveCardMetric>
+        <WaveCardMetric label="Chờ bán"><HistoryValue value={row.waitsell} color={t.A} bg={t.As} /></WaveCardMetric>
+        <WaveCardMetric label="Bán"><HistoryValue value={row.sell} color={t.R} bg={t.Rs} /></WaveCardMetric>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginTop: 11 }}>
+        <span style={{ fontSize: 12, color: "var(--t3)" }}>Tổng <span style={{ color: "var(--t1)", fontWeight: 800, ...mono }}>{fmtNum(row.total)}</span></span>
+        <FlowBalance row={row} t={t} />
+      </div>
+    </div>
+  );
+}
+
 function WaveHistoryTable({ rows, page, totalPages, onPageChange, totalRows, t }) {
+  const narrow = useNarrow();
   const cell = {
     padding: "9px 10px",
     borderBottom: "0.5px solid var(--bdrs)",
@@ -171,6 +209,13 @@ function WaveHistoryTable({ rows, page, totalPages, onPageChange, totalRows, t }
       <div style={{ padding: "14px 16px 12px", borderBottom: "0.5px solid var(--bdr)", background: "var(--surf)" }}>
         <CardHeader icon="ti-history" title="Lịch sử phiên" right={headRight} mb={0} />
       </div>
+      {narrow ? (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 9, padding: 14 }}>
+          {rows.map((row, index) => (
+            <WaveHistoryCard key={row.date} row={row} latest={page === 1 && index === 0} t={t} />
+          ))}
+        </div>
+      ) : (
       <TableWrap minWidth={820}>
         <THead cols={[
           { label: "Ngày", pl: 16 },
@@ -207,6 +252,7 @@ function WaveHistoryTable({ rows, page, totalPages, onPageChange, totalRows, t }
           })}
         </tbody>
       </TableWrap>
+      )}
       {totalPages > 1 && (
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "12px 16px", borderTop: "0.5px solid var(--bdr)", background: "var(--surf)", flexWrap: "wrap" }}>
           <span style={{ fontSize: 11, color: "var(--t4)", fontWeight: 700 }}>

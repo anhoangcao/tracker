@@ -2,10 +2,18 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { valToHmCls } from "../../styles/tokens";
 import { useSMDT, useRealtimeFeed } from "../../data/useSMDT";
 import { fmtDay, fmtFull, fmtNum } from "../../app/formatters";
-import { Card, Pagination, HM, Banner, LiveFooter } from "../../components/ui";
+import { useNarrow } from "../../app/useNarrow";
+import { Card, Pagination, HM, HMmini, Banner, LiveFooter } from "../../components/ui";
+import { MatrixCards } from "../../components/ui/MatrixCards";
 import { HeatLegend, SMDTToolbarPill, SMDTSearchPill, linkBtn } from "../../components/ui/ModuleControls";
 import { IndustryPicker } from "../cash-flow-ticker/IndustryPicker";
 import { cashFlowMatrixDateTd, cashFlowMatrixTd, cashFlowMatrixTh } from "../cash-flow-ticker/cashFlowUtils";
+
+function smdtCell(value, variant) {
+  const cls = valToHmCls(value);
+  if (!cls) return <span style={{ color: "var(--t4)", fontSize: variant === "sm" ? 11 : 13 }}>—</span>;
+  return variant === "sm" ? <HMmini cls={cls} val={value.toFixed(1)} /> : <HM cls={cls} val={value.toFixed(2)} />;
+}
 
 const HIDDEN_INDUSTRIES_KEY = "smdt_branch_hidden_industries_v1";
 const SMDT_SESSION_OPTIONS = [12, 25, 50];
@@ -53,6 +61,7 @@ function getSmdtSig(value) {
 }
 
 export function ModSMDTNganh() {
+  const narrow = useNarrow();
   const { branches, datesAsc, matrix, status, error, updatedAt, refresh, applyTick } = useSMDT();
   const { connected: live } = useRealtimeFeed(applyTick);
 
@@ -216,47 +225,69 @@ export function ModSMDTNganh() {
         <Banner tone="error">Lỗi tải dữ liệu: {error} <button onClick={refresh} style={linkBtn}>Thử lại</button></Banner>
       )}
 
-      <Card noPad>
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, minWidth: Math.max(700, 150 + colCount * 90) }}>
-            <thead>
-              <tr>
-                <th style={{ ...cashFlowMatrixTh, position: "sticky", left: 0, zIndex: 4, width: 150, textAlign: "left" }}>NGÀY ↓</th>
-                {visibleBranches.map((b) => (
-                  <th key={b.key} title={b.key} style={{ ...cashFlowMatrixTh, minWidth: 90 }}>{b.label.toUpperCase()}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {pageDates.map((date, di) => {
-                const isLatest = di === 0 && safePage === 1;
-                const isActive = dateInputValue === toDateInputValue(date);
-                const dateBg = isActive || isLatest ? "var(--elev)" : "var(--surf)";
-                return (
-                  <tr key={date}>
-                    <td style={{ ...cashFlowMatrixDateTd, position: "sticky", left: 0, zIndex: 2, background: dateBg, fontWeight: isActive || isLatest ? 800 : 700 }}>
-                      {fmtDay(date)}
-                      {isLatest && <span style={{ fontSize: 8, background: "var(--Bs)", color: "var(--B)", borderRadius: 3, padding: "1px 5px", marginLeft: 5, fontWeight: 800 }}>HN</span>}
-                    </td>
-                    {visibleBranches.map((b) => {
-                      const v = matrix[b.key]?.[date];
-                      const cls = valToHmCls(v);
-                      return (
-                        <td key={b.key} style={{ ...cashFlowMatrixTd, background: isActive || isLatest ? "var(--elev)" : cashFlowMatrixTd.background }}>
-                          {cls ? <HM cls={cls} val={v.toFixed(2)} /> : <span style={{ color: "var(--t4)" }}>—</span>}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                );
-              })}
-              {visibleBranches.length === 0 && (
-                <tr><td colSpan={2} style={{ padding: 28, textAlign: "center", color: "var(--t3)" }}>Không tìm thấy ngành phù hợp.</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </Card>
+      {narrow ? (
+        <MatrixCards
+          activeDate={activeDate}
+          activeLabel={activeDate ? fmtDay(activeDate) : null}
+          sessions={pageDates.map((date, di) => ({
+            date,
+            label: fmtDay(date),
+            isActive: dateInputValue === toDateInputValue(date),
+            isLatest: di === 0 && safePage === 1,
+          }))}
+          groups={[{
+            industry: null,
+            entities: visibleBranches.map((b) => ({
+              key: b.key,
+              title: b.label,
+              render: (date, variant) => smdtCell(matrix[b.key]?.[date], variant),
+            })),
+          }]}
+          emptyText="Không tìm thấy ngành phù hợp."
+        />
+      ) : (
+        <Card noPad>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, minWidth: Math.max(700, 150 + colCount * 90) }}>
+              <thead>
+                <tr>
+                  <th style={{ ...cashFlowMatrixTh, position: "sticky", left: 0, zIndex: 4, width: 150, textAlign: "left" }}>NGÀY ↓</th>
+                  {visibleBranches.map((b) => (
+                    <th key={b.key} title={b.key} style={{ ...cashFlowMatrixTh, minWidth: 90 }}>{b.label.toUpperCase()}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {pageDates.map((date, di) => {
+                  const isLatest = di === 0 && safePage === 1;
+                  const isActive = dateInputValue === toDateInputValue(date);
+                  const dateBg = isActive || isLatest ? "var(--elev)" : "var(--surf)";
+                  return (
+                    <tr key={date}>
+                      <td style={{ ...cashFlowMatrixDateTd, position: "sticky", left: 0, zIndex: 2, background: dateBg, fontWeight: isActive || isLatest ? 800 : 700 }}>
+                        {fmtDay(date)}
+                        {isLatest && <span style={{ fontSize: 8, background: "var(--Bs)", color: "var(--B)", borderRadius: 3, padding: "1px 5px", marginLeft: 5, fontWeight: 800 }}>HN</span>}
+                      </td>
+                      {visibleBranches.map((b) => {
+                        const v = matrix[b.key]?.[date];
+                        const cls = valToHmCls(v);
+                        return (
+                          <td key={b.key} style={{ ...cashFlowMatrixTd, background: isActive || isLatest ? "var(--elev)" : cashFlowMatrixTd.background }}>
+                            {cls ? <HM cls={cls} val={v.toFixed(2)} /> : <span style={{ color: "var(--t4)" }}>—</span>}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  );
+                })}
+                {visibleBranches.length === 0 && (
+                  <tr><td colSpan={2} style={{ padding: 28, textAlign: "center", color: "var(--t3)" }}>Không tìm thấy ngành phù hợp.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
         <HeatLegend />

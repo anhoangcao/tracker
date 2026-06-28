@@ -3,10 +3,23 @@ import { valToHmCls } from "../../styles/tokens";
 import { useSMDTTicker, useRealtimeSMDTTickerFeed } from "../../data/useSMDTTicker";
 import { useBranchPath } from "../../data/useBranchPath";
 import { fmtDay, fmtFull, fmtNum } from "../../app/formatters";
-import { Card, Pagination, HM, Banner, LiveFooter } from "../../components/ui";
+import { useNarrow } from "../../app/useNarrow";
+import { Card, Pagination, HM, HMmini, Banner, LiveFooter } from "../../components/ui";
+import { MatrixCards } from "../../components/ui/MatrixCards";
 import { HeatLegend, SMDTToolbarPill, SMDTSearchPill, linkBtn } from "../../components/ui/ModuleControls";
 import { IndustryPicker } from "../cash-flow-ticker/IndustryPicker";
 import { cashFlowGroupTh, cashFlowMatrixDateTd, cashFlowMatrixTd, cashFlowMatrixTh } from "../cash-flow-ticker/cashFlowUtils";
+
+function smdtCell(value, variant) {
+  const cls = valToHmCls(value);
+  if (!cls) return <span style={{ color: "var(--t4)", fontSize: variant === "sm" ? 11 : 13 }}>—</span>;
+  return variant === "sm" ? <HMmini cls={cls} val={value.toFixed(1)} /> : <HM cls={cls} val={value.toFixed(2)} />;
+}
+
+function avgAt(tickers, matrix, date) {
+  const vals = tickers.map((tk) => matrix[tk.key]?.[date]).filter(Number.isFinite);
+  return vals.length ? vals.reduce((a, v) => a + v, 0) / vals.length : null;
+}
 
 const HIDDEN_INDUSTRIES_KEY = "smdt_ticker_hidden_industries_v1";
 const COLLAPSED_INDUSTRIES_KEY = "smdt_ticker_collapsed_industries_v1";
@@ -55,6 +68,7 @@ function getSmdtSig(value) {
 }
 
 export function ModSMDTMa() {
+  const narrow = useNarrow();
   const { tickers, datesAsc, matrix, status, error, updatedAt, refresh, applyTick } = useSMDTTicker();
   const { connected: live } = useRealtimeSMDTTickerFeed(applyTick);
   const { tickerToBranch, status: branchPathStatus, error: branchPathError, refresh: refreshBranchPath } = useBranchPath();
@@ -283,10 +297,42 @@ export function ModSMDTMa() {
         <Banner tone="error">Lỗi tải danh sách ngành: {branchPathError} <button onClick={refreshBranchPath} style={linkBtn}>Thử lại</button></Banner>
       )}
 
-      <Card noPad>
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, minWidth: Math.max(700, 150 + colCount * 76) }}>
-            <thead>
+      {narrow ? (
+        <MatrixCards
+          activeDate={activeDate}
+          activeLabel={activeDate ? fmtDay(activeDate) : null}
+          sessions={pageDates.map((date, di) => ({
+            date,
+            label: fmtDay(date),
+            isActive: dateInputValue === toDateInputValue(date),
+            isLatest: di === 0 && safePage === 1,
+          }))}
+          groups={groups.map((g) => ({
+            industry: g.industry,
+            count: g.tickers.length,
+            collapsed: collapsedInd.has(g.industry),
+            onToggle: () => toggleCollapse(g.industry),
+            entities: collapsedInd.has(g.industry)
+              ? [{
+                  key: `${g.industry}__sum`,
+                  title: "Tổng hợp",
+                  subtitle: `${g.tickers.length} mã`,
+                  render: (date, variant) => smdtCell(avgAt(g.tickers, matrix, date), variant),
+                }]
+              : g.tickers.map((tk) => ({
+                  key: tk.key,
+                  title: tk.key,
+                  subtitle: tk.name !== tk.key ? tk.name : null,
+                  render: (date, variant) => smdtCell(matrix[tk.key]?.[date], variant),
+                })),
+          }))}
+          emptyText="Không tìm thấy mã phù hợp."
+        />
+      ) : (
+        <Card noPad>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, minWidth: Math.max(700, 150 + colCount * 76) }}>
+              <thead>
               <tr>
                 <th rowSpan={2} style={{ ...cashFlowMatrixTh, position: "sticky", left: 0, zIndex: 4, width: 150, textAlign: "left" }}>NGÀY ↓</th>
                 {groups.map((g) => {
@@ -356,13 +402,14 @@ export function ModSMDTMa() {
                   </tr>
                 );
               })}
-              {visibleTickers.length === 0 && (
-                <tr><td colSpan={2} style={{ padding: 28, textAlign: "center", color: "var(--t3)" }}>Không tìm thấy mã phù hợp.</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </Card>
+                {visibleTickers.length === 0 && (
+                  <tr><td colSpan={2} style={{ padding: 28, textAlign: "center", color: "var(--t3)" }}>Không tìm thấy mã phù hợp.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
         <HeatLegend />
