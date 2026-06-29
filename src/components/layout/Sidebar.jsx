@@ -8,15 +8,18 @@ import { useTheme } from "../../theme";
  * ─────────────────────────────────────────────────────────────────────── */
 const NGANH_IDS = SIDEBAR_GROUPS.industry;
 const CP_IDS = SIDEBAR_GROUPS.stocks;
+const PORTFOLIO_IDS = SIDEBAR_GROUPS.portfolio;
 
 export function Sidebar({ curMod, onNav, compact }) {
   const { t } = useTheme();
   const [nganhOpen, setNganhOpen] = useState(false);
   const [cpOpen, setCpOpen] = useState(false);
+  const [portfolioOpen, setPortfolioOpen] = useState(false);
 
   useEffect(() => {
     if (NGANH_IDS.includes(curMod)) setNganhOpen(true);
     if (CP_IDS.includes(curMod)) setCpOpen(true);
+    if (PORTFOLIO_IDS.includes(curMod)) setPortfolioOpen(true);
   }, [curMod]);
 
   const item = (id, icon, label, { onClick, isParent, isOpen, subIds } = {}) => {
@@ -95,6 +98,11 @@ export function Sidebar({ curMod, onNav, compact }) {
         {sub("dong-tien-cp", "ti-trending-up", "Dòng tiền cổ phiếu")}
         {sub("smdt-ma", "ti-table-column", "SMDT cổ phiếu")}
         {sub("top-ma-manh", "ti-award", "Top mã mạnh")}
+      </div>
+
+      {item(null, "ti-briefcase", "Danh mục", { onClick: () => setPortfolioOpen((o) => !o), isParent: true, isOpen: portfolioOpen, subIds: PORTFOLIO_IDS })}
+      <div style={{ maxHeight: portfolioOpen ? 120 : 0, overflow: "hidden", transition: "max-height .25s ease" }}>
+        {sub("portfolio-analysis", "ti-sparkles", "Phân tích danh mục")}
       </div>
 
       {item(null, "ti-chart-bar", "Báo cáo")}

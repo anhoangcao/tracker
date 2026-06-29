@@ -5,6 +5,7 @@ import { ModDongTienCP } from "../features/cash-flow-ticker/CashFlowTicker";
 import { ModSMDTMa } from "../features/smdt-ticker/SMDTTicker";
 import { ModTopMaManh } from "../features/top-strong-tickers/TopStrongTickers";
 import { ModDongTienTT } from "../features/market-flow/MarketFlow";
+import { ModPhanTichDanhMuc } from "../features/portfolio-analysis/PortfolioAnalysis";
 
 /* ─────────────────────────── MODULE REGISTRY ───────────────────────────
  * Mỗi module: tiêu đề + phụ đề cho topbar, render qua <ModuleView>.
@@ -19,11 +20,13 @@ export const MODULES = {
   "dong-tien-cp":    { title: "Dòng tiền cổ phiếu",  sub: "Tín hiệu từng mã — theo dõi nhiều phiên" },
   "smdt-ma":         { title: "SMDT cổ phiếu",       sub: "SMDT từng cổ phiếu theo ngày · realtime" },
   "top-ma-manh":     { title: "Top mã mạnh",         sub: "Xếp hạng mã theo SMDT · dòng tiền mã/ngành" },
+  "portfolio-analysis": { title: "Phân tích danh mục", sub: "Dữ liệu thật · StockTraders API" },
 };
 
 export const SIDEBAR_GROUPS = {
   industry: ["dong-tien-nganh", "smdt-nganh"],
   stocks: ["dong-tien-cp", "smdt-ma", "top-ma-manh"],
+  portfolio: ["portfolio-analysis"],
 };
 
 export const BOTTOM_TABS = [
@@ -40,6 +43,7 @@ export function ModuleView({ id }) {
     case "dong-tien-cp":    return <ModDongTienCP />;
     case "smdt-ma":         return <ModSMDTMa />;
     case "top-ma-manh":     return <ModTopMaManh />;
+    case "portfolio-analysis": return <ModPhanTichDanhMuc />;
     case "dong-tien-tt":    return <ModDongTienTT />;
     default:                return <ModDashboard />;
   }
