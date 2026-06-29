@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTheme } from "../../theme";
 import { mono } from "../../styles/tokens";
 import { useNarrow } from "../../app/useNarrow";
@@ -13,6 +13,7 @@ import { Banner, Card } from "../../components/ui";
 import { CfBadge } from "../cash-flow-ticker/CfBadge";
 
 const MAX_CODES = 15;
+const STORAGE_KEY = "portfolio_analysis_state_v1";
 const INDUSTRY_ALIAS_GROUPS = [
   ["Môi giới chứng khoán", "Chứng khoán"],
   ["Ngân hàng thương mại truyền thống", "Ngân hàng", "Ngân hàng TM truyền thống"],
@@ -98,6 +99,27 @@ function parseCodes(input) {
     .slice(0, MAX_CODES);
 }
 
+function loadSavedPortfolio() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
+    const input = typeof parsed?.input === "string" ? parsed.input : "";
+    const analyzedCodes = Array.isArray(parsed?.analyzedCodes)
+      ? parsed.analyzedCodes.map((code) => String(code || "").trim().toUpperCase()).filter(Boolean).slice(0, MAX_CODES)
+      : [];
+    return { input, analyzedCodes };
+  } catch {
+    return { input: "", analyzedCodes: [] };
+  }
+}
+
+function savePortfolio(input, analyzedCodes) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ input, analyzedCodes }));
+  } catch {
+    // Bỏ qua nếu trình duyệt chặn localStorage.
+  }
+}
+
 function isPositiveSig(sig) {
   return sig === "si" || sig === "sn";
 }
@@ -155,13 +177,13 @@ function changePct(point) {
   return ((point.close - point.open) / point.open) * 100;
 }
 
-function EvalBadge({ value }) {
+function EvalBadge({ value, full }) {
   const meta = {
     DS_DN: { label: "Đúng sóng, đúng ngành", bg: "var(--Gs)", border: "var(--Gb)", color: "var(--G)" },
     DS_SN: { label: "Đúng sóng, sai ngành", bg: "var(--As)", border: "var(--Ab)", color: "var(--A)" },
     SS: { label: "Sai sóng", bg: "var(--Rs)", border: "var(--Rb)", color: "var(--R)" },
   }[value];
-  return <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 96, padding: "5px 10px", borderRadius: 7, background: meta.bg, border: `0.5px solid ${meta.border}`, color: meta.color, fontSize: 11, fontWeight: 800, whiteSpace: "nowrap" }}>{meta.label}</span>;
+  return <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: full ? "100%" : undefined, maxWidth: "100%", minWidth: full ? 0 : 96, padding: "5px 10px", borderRadius: 7, background: meta.bg, border: `0.5px solid ${meta.border}`, color: meta.color, fontSize: 11, fontWeight: 800, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{meta.label}</span>;
 }
 
 function SignalBadge({ value }) {
@@ -360,13 +382,12 @@ function DetailCards({ rows, codes, dateLabel }) {
           }
           const c = changePct(row.tradePoint);
           return (
-            <div key={row.ticker} style={{ background: "var(--elev)", border: "0.5px solid var(--bdr)", borderRadius: 10, padding: 12 }}>
-              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
+            <div key={row.ticker} style={{ background: "var(--elev)", border: "0.5px solid var(--bdr)", borderRadius: 10, padding: 12, minWidth: 0, overflow: "hidden" }}>
+              <div style={{ minWidth: 0 }}>
                 <div style={{ minWidth: 0 }}>
                   <div style={{ color: "var(--B)", fontSize: 16, fontWeight: 900 }}>{row.ticker}</div>
                   <div style={{ color: "var(--t4)", fontSize: 11, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.name}</div>
                 </div>
-                <EvalBadge value={row.evalKey} />
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 9, marginTop: 11, paddingTop: 11, borderTop: "0.5px solid var(--bdrs)" }}>
                 <Metric label="Giá" value={priceText(row.tradePoint)} color="var(--G)" />
@@ -374,11 +395,14 @@ function DetailCards({ rows, codes, dateLabel }) {
                 <Metric label="SMDT mã" value={Number.isFinite(row.smdt) ? row.smdt.toFixed(2) : "—"} />
                 <Metric label="SMDT ngành" value={Number.isFinite(row.branchSmdt) ? row.branchSmdt.toFixed(2) : "—"} />
               </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap", marginTop: 11 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap", marginTop: 11, minWidth: 0 }}>
                 <CfBadge sig={row.tickerSig} compact />
                 <CfBadge sig={row.branchSig} compact />
                 <SignalBadge value={row.signal} />
-                <span style={{ color: "var(--t3)", fontSize: 11, marginLeft: "auto" }}>Tỷ trọng {row.weight}%</span>
+                <span style={{ color: "var(--t3)", fontSize: 11, marginLeft: "auto", whiteSpace: "nowrap" }}>Tỷ trọng {row.weight}%</span>
+              </div>
+              <div style={{ marginTop: 9, minWidth: 0 }}>
+                <EvalBadge value={row.evalKey} full />
               </div>
             </div>
           );
@@ -399,8 +423,9 @@ function Metric({ label, value, color = "var(--t2)" }) {
 
 export function ModPhanTichDanhMuc() {
   const narrow = useNarrow();
-  const [input, setInput] = useState("");
-  const [analyzedCodes, setAnalyzedCodes] = useState([]);
+  const saved = useMemo(loadSavedPortfolio, []);
+  const [input, setInput] = useState(saved.input);
+  const [analyzedCodes, setAnalyzedCodes] = useState(saved.analyzedCodes);
   const [loading, setLoading] = useState(false);
   const smdtTicker = useSMDTTicker();
   const cashTicker = useCashFlowTicker();
@@ -461,6 +486,10 @@ export function ModPhanTichDanhMuc() {
   const { dn, sn, ss, score } = useMemo(() => scoreCalc(foundRows), [foundRows]);
   const scoreName = scoreLabel(score);
   const hasBlockingLoad = smdtTicker.status === "loading" && !smdtTicker.datesAsc.length;
+
+  useEffect(() => {
+    savePortfolio(input, analyzedCodes);
+  }, [analyzedCodes, input]);
 
   const analyze = () => {
     if (!codes.length) return;
