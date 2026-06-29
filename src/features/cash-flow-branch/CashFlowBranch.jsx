@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useCashFlowBranch, useRealtimeCashFlowFeed, contentToSig } from "../../data/useCashFlowBranch";
+import { useNarrow } from "../../app/useNarrow";
 import { fmtDay, fmtFull, fmtNum } from "../../app/formatters";
 import { Card, Pagination, Banner, LiveFooter } from "../../components/ui";
 import { SMDTToolbarPill, SMDTSearchPill, linkBtn } from "../../components/ui/ModuleControls";
@@ -45,6 +46,7 @@ function findDateIndex(datesDesc, dateValue) {
 }
 
 export function ModDongTienNganh() {
+  const narrow = useNarrow();
   const { branches, datesAsc, matrix, status, error, updatedAt, refresh, applyTick } = useCashFlowBranch();
   const { connected: live } = useRealtimeCashFlowFeed(applyTick);
 
@@ -157,7 +159,7 @@ export function ModDongTienNganh() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "nowrap", overflow: "visible", paddingBottom: 2 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: narrow ? "wrap" : "nowrap", overflow: "visible", paddingBottom: 2 }}>
         <IndustryPicker
           industries={industries}
           hidden={hiddenInd}
@@ -219,10 +221,10 @@ export function ModDongTienNganh() {
           </select>
           <i className="ti ti-chevron-down" style={{ fontSize: 12, color: "var(--t4)" }} />
         </SMDTToolbarPill>
-        <SMDTSearchPill placeholder="Tìm ngành..." value={query} onChange={(e) => setQuery(e.target.value)} style={{ width: 150, padding: "0 10px", flexShrink: 0 }} />
+        <SMDTSearchPill placeholder="Tìm ngành..." value={query} onChange={(e) => setQuery(e.target.value)} style={{ width: narrow ? "100%" : 150, padding: "0 10px", flexShrink: narrow ? 1 : 0 }} />
         <button
           onClick={exportExcel}
-          style={{ marginLeft: "auto", height: 32, padding: "0 12px", borderRadius: 9, background: "var(--B)", color: "#fff", border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6, whiteSpace: "nowrap", fontFamily: "inherit", flexShrink: 0 }}
+          style={{ marginLeft: narrow ? 0 : "auto", height: 32, padding: "0 12px", borderRadius: 9, background: "var(--B)", color: "#fff", border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6, whiteSpace: "nowrap", fontFamily: "inherit", flexShrink: 0 }}
         >
           <i className="ti ti-file-spreadsheet" style={{ fontSize: 15 }} />Xuất Excel
         </button>
@@ -234,6 +236,32 @@ export function ModDongTienNganh() {
       )}
 
       <Card noPad>
+        {narrow ? (
+          <div style={{ display: "grid", gap: 10, padding: 12 }}>
+            {pageDates.map((date, di) => {
+              const isLatest = di === 0 && safePage === 1;
+              const isActive = dateInputValue === toDateInputValue(date);
+              return (
+                <div key={date} style={{ background: isActive || isLatest ? "var(--elev)" : "var(--surf)", border: "0.5px solid var(--bdr)", borderRadius: 11, padding: "12px 13px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 10 }}>
+                    <span style={{ color: "var(--t1)", fontSize: 13, fontWeight: 800 }}>{fmtDay(date)}</span>
+                    {isLatest && <span style={{ fontSize: 8, background: "var(--Bs)", color: "var(--B)", borderRadius: 3, padding: "1px 5px", fontWeight: 800 }}>HN</span>}
+                    <span style={{ marginLeft: "auto", color: "var(--t4)", fontSize: 11 }}>{fmtFull(date)}</span>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(132px, 1fr))", gap: 8 }}>
+                    {visibleBranches.map((b) => (
+                      <div key={b.key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, minWidth: 0, background: "var(--surf)", border: "0.5px solid var(--bdrs)", borderRadius: 8, padding: "8px 9px" }}>
+                        <span title={b.label} style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--t2)", fontSize: 11, fontWeight: 700 }}>{b.label}</span>
+                        <CfBadge sig={contentToSig(matrix[b.key]?.[date])} compact />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+            {visibleBranches.length === 0 && <div style={{ padding: 28, textAlign: "center", color: "var(--t3)" }}>Không tìm thấy ngành phù hợp.</div>}
+          </div>
+        ) : (
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, minWidth: Math.max(700, 150 + colCount * 104) }}>
             <thead>
@@ -269,6 +297,7 @@ export function ModDongTienNganh() {
             </tbody>
           </table>
         </div>
+        )}
       </Card>
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 12, flexWrap: "wrap" }}>

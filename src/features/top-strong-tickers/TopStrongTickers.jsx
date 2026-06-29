@@ -70,6 +70,16 @@ function findDateIndex(datesDesc, dateValue) {
   return previousIndex === -1 ? datesDesc.length - 1 : previousIndex;
 }
 
+function sortDatesDesc(dates) {
+  return [...dates].sort((a, b) => toDateInputValue(b).localeCompare(toDateInputValue(a)));
+}
+
+function findBucketByDate(buckets, date) {
+  const value = toDateInputValue(date);
+  if (!value) return null;
+  return buckets.find((bucket) => toDateInputValue(bucket.date) === value) || null;
+}
+
 function sigWeight(sig) {
   return { si: 3, sn: 1.6, so: -1.1, st: -2.4 }[sig] || 0;
 }
@@ -215,7 +225,7 @@ function SignalDropdown({ branchSigs, tickerSigs, onBranchChange, onTickerChange
   return (
     <FilterButton active={active} icon="ti-trending-up" label={active ? `Tín hiệu ${total}/8` : "Tín hiệu dòng tiền"}>
       {({ close }) => (
-        <div style={{ position: "absolute", top: "calc(100% + 8px)", left: 0, zIndex: 70, width: 292, background: "var(--surf)", border: "0.5px solid var(--bdr)", borderRadius: 12, padding: 10, boxShadow: "0 16px 48px rgba(0,0,0,.45)" }}>
+        <div style={{ position: "absolute", top: "calc(100% + 8px)", left: 0, zIndex: 70, width: 292, background: "var(--surf)", border: "0.5px solid var(--bdr)", borderRadius: 12, padding: 10, boxShadow: "0 16px 42px rgba(15,23,42,.18)" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingBottom: 9, marginBottom: 10, borderBottom: "0.5px solid var(--bdr)" }}>
             <span style={{ color: "var(--t3)", fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".08em" }}>Tín hiệu dòng tiền</span>
             <button type="button" onClick={() => { onBranchChange(new Set(SIGS)); onTickerChange(new Set(SIGS)); }} style={{ border: "none", background: "transparent", color: "var(--t4)", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>Đặt lại</button>
@@ -237,7 +247,7 @@ function StatusDropdown({ status, counts, onChange }) {
   return (
     <FilterButton active={active} icon="ti-filter" label={STATUS_META[status]?.label || "Trạng thái"}>
       {({ close }) => (
-        <div style={{ position: "absolute", top: "calc(100% + 8px)", left: 0, zIndex: 70, minWidth: 218, background: "var(--surf)", border: "0.5px solid var(--bdr)", borderRadius: 12, padding: 10, boxShadow: "0 16px 48px rgba(0,0,0,.45)" }}>
+        <div style={{ position: "absolute", top: "calc(100% + 8px)", left: 0, zIndex: 70, minWidth: 218, background: "var(--surf)", border: "0.5px solid var(--bdr)", borderRadius: 12, padding: 10, boxShadow: "0 16px 42px rgba(15,23,42,.18)" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingBottom: 9, marginBottom: 8, borderBottom: "0.5px solid var(--bdr)" }}>
             <span style={{ color: "var(--t3)", fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".08em" }}>Trạng thái</span>
             <button type="button" onClick={() => { onChange("all"); close(); }} style={{ border: "none", background: "transparent", color: "var(--t4)", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>Đặt lại</button>
@@ -418,7 +428,7 @@ export function ModTopMaManh() {
   const [status, setStatus] = useState("all");
   const [selectedDate, setSelectedDate] = useState("");
 
-  const datesDesc = useMemo(() => [...smdtTicker.datesAsc].reverse(), [smdtTicker.datesAsc]);
+  const datesDesc = useMemo(() => sortDatesDesc(smdtTicker.datesAsc), [smdtTicker.datesAsc]);
   const latestSmdtDate = datesDesc[0] || "";
   const activeDateValue = selectedDate || toDateInputValue(latestSmdtDate);
   const activeDateIndex = useMemo(() => findDateIndex(datesDesc, activeDateValue), [activeDateValue, datesDesc]);
@@ -430,15 +440,15 @@ export function ModTopMaManh() {
   const dateInputValue = toDateInputValue(activeSmdtDate);
   const canGoNewer = activeDateIndex > 0;
   const canGoOlder = activeDateIndex >= 0 && activeDateIndex < datesDesc.length - 1;
-  const cashTickerDatesDesc = useMemo(() => [...cashTicker.buckets].reverse().map((bucket) => bucket.date), [cashTicker.buckets]);
+  const cashTickerDatesDesc = useMemo(() => sortDatesDesc(cashTicker.buckets.map((bucket) => bucket.date)), [cashTicker.buckets]);
   const activeCashTickerIndex = useMemo(() => findDateIndex(cashTickerDatesDesc, dateInputValue), [cashTickerDatesDesc, dateInputValue]);
   const activeCashTickerDate = activeCashTickerIndex >= 0 ? cashTickerDatesDesc[activeCashTickerIndex] : "";
   const activeCashBucket = useMemo(
-    () => cashTicker.buckets.find((bucket) => bucket.date === activeCashTickerDate) || cashTicker.latest,
-    [activeCashTickerDate, cashTicker.buckets, cashTicker.latest]
+    () => findBucketByDate(cashTicker.buckets, activeCashTickerDate),
+    [activeCashTickerDate, cashTicker.buckets]
   );
-  const smdtBranchDatesDesc = useMemo(() => [...smdtBranch.datesAsc].reverse(), [smdtBranch.datesAsc]);
-  const cashBranchDatesDesc = useMemo(() => [...cashBranch.datesAsc].reverse(), [cashBranch.datesAsc]);
+  const smdtBranchDatesDesc = useMemo(() => sortDatesDesc(smdtBranch.datesAsc), [smdtBranch.datesAsc]);
+  const cashBranchDatesDesc = useMemo(() => sortDatesDesc(cashBranch.datesAsc), [cashBranch.datesAsc]);
   const activeBranchSmdtIndex = useMemo(() => findDateIndex(smdtBranchDatesDesc, dateInputValue), [dateInputValue, smdtBranchDatesDesc]);
   const activeBranchCashIndex = useMemo(() => findDateIndex(cashBranchDatesDesc, dateInputValue), [cashBranchDatesDesc, dateInputValue]);
   const activeBranchSmdtDate = activeBranchSmdtIndex >= 0 ? smdtBranchDatesDesc[activeBranchSmdtIndex] : "";

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useCashFlowTicker, useRealtimeCashFlowTickerFeed, tickerContentToSig } from "../../data/useCashFlowTicker";
 import { useCashFlowBranch, useRealtimeCashFlowFeed, contentToSig } from "../../data/useCashFlowBranch";
 import { useBranchPath } from "../../data/useBranchPath";
+import { useNarrow } from "../../app/useNarrow";
 import { fmtFull, fmtNum } from "../../app/formatters";
 import { Card, Pagination, Banner, LiveFooter } from "../../components/ui";
 import { SMDTToolbarPill, SMDTSearchPill, InlineFilterChips, linkBtn } from "../../components/ui/ModuleControls";
@@ -70,6 +71,7 @@ function findDateIndex(datesDesc, dateValue) {
 }
 
 export function ModDongTienCP() {
+  const narrow = useNarrow();
   const { latest, buckets, allowedTickers, status, error, updatedAt, refresh, applyTick } = useCashFlowTicker();
   const { connected: live } = useRealtimeCashFlowTickerFeed(applyTick);
   const {
@@ -300,7 +302,7 @@ export function ModDongTienCP() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       {/* Thanh công cụ + bộ lọc */}
-      <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "nowrap", overflow: "visible", paddingBottom: 2 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: narrow ? "wrap" : "nowrap", overflow: "visible", paddingBottom: 2 }}>
         <IndustryPicker
           industries={industries}
           hidden={hiddenInd}
@@ -356,7 +358,7 @@ export function ModDongTienCP() {
           </select>
           <i className="ti ti-chevron-down" style={{ fontSize: 12, color: "var(--t4)" }} />
         </SMDTToolbarPill>
-        <SMDTSearchPill placeholder="Tìm mã..." value={query} onChange={(e) => setQuery(e.target.value)} style={{ width: 118, padding: "0 10px", flexShrink: 0 }} />
+        <SMDTSearchPill placeholder="Tìm mã..." value={query} onChange={(e) => setQuery(e.target.value)} style={{ width: narrow ? "100%" : 118, padding: "0 10px", flexShrink: narrow ? 1 : 0 }} />
         <InlineFilterChips
           options={[
             { id: "all", label: "Tất cả" },
@@ -370,26 +372,78 @@ export function ModDongTienCP() {
         />
         <button
           onClick={exportExcel}
-          style={{ marginLeft: "auto", height: 32, padding: "0 12px", borderRadius: 9, background: "var(--B)", color: "#fff", border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6, whiteSpace: "nowrap", fontFamily: "inherit", flexShrink: 0 }}
+          style={{ marginLeft: narrow ? 0 : "auto", height: 32, padding: "0 12px", borderRadius: 9, background: "var(--B)", color: "#fff", border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6, whiteSpace: "nowrap", fontFamily: "inherit", flexShrink: 0 }}
         >
           <i className="ti ti-file-spreadsheet" style={{ fontSize: 15 }} />Xuất Excel
         </button>
       </div>
 
       <Card noPad>
-        <CashFlowMatrixTable
-          collapsedInd={collapsedInd}
-          colCount={colCount}
-          groupStarts={groupStarts}
-          groups={groups}
-          matrix={matrix}
-          pageDates={pageDates}
-          safePage={safePage}
-          activeDate={dateInputValue}
-          branchIndustrySigByDate={branchIndustrySigByDate}
-          toggleCollapse={toggleCollapse}
-          visibleTickers={visibleTickers}
-        />
+        {narrow ? (
+          <div style={{ display: "grid", gap: 10, padding: 12 }}>
+            {pageDates.map((bucket, di) => {
+              const isLatest = di === 0 && safePage === 1;
+              const isActive = dateInputValue === toDateInputValue(bucket.date);
+              return (
+                <div key={bucket.date} style={{ background: isActive || isLatest ? "var(--elev)" : "var(--surf)", border: "0.5px solid var(--bdr)", borderRadius: 11, padding: "12px 13px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 10 }}>
+                    <span style={{ color: "var(--t1)", fontSize: 13, fontWeight: 800 }}>{fmtFull(bucket.date)}</span>
+                    {isLatest && <span style={{ fontSize: 8, background: "var(--Bs)", color: "var(--B)", borderRadius: 3, padding: "1px 5px", fontWeight: 800 }}>HN</span>}
+                  </div>
+                  <div style={{ display: "grid", gap: 9 }}>
+                    {groups.map((g) => {
+                      const collapsed = collapsedInd.has(g.industry);
+                      const branchSig = branchIndustrySigByDate?.[g.industry]?.[toDateInputValue(bucket.date)] || null;
+                      return (
+                        <div key={g.industry} style={{ background: "var(--surf)", border: "0.5px solid var(--bdrs)", borderRadius: 9, padding: "9px 10px" }}>
+                          <button
+                            type="button"
+                            onClick={() => toggleCollapse(g.industry)}
+                            style={{ width: "100%", display: "flex", alignItems: "center", gap: 7, border: "none", background: "transparent", padding: 0, color: "var(--t2)", fontFamily: "inherit", cursor: "pointer" }}
+                          >
+                            <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 11, fontWeight: 800, textTransform: "uppercase" }}>{g.industry}</span>
+                            <span style={{ marginLeft: "auto", color: "var(--t4)", fontSize: 10, fontWeight: 800 }}>{g.tickers.length} mã</span>
+                            <span style={{ color: "var(--t4)", fontSize: 14 }}>{collapsed ? "›" : "‹"}</span>
+                          </button>
+                          {collapsed ? (
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginTop: 8 }}>
+                              <span style={{ color: "var(--t4)", fontSize: 11 }}>Tổng hợp</span>
+                              <CfBadge sig={branchSig} compact />
+                            </div>
+                          ) : (
+                            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(92px, 1fr))", gap: 7, marginTop: 8 }}>
+                              {g.tickers.map((ticker) => (
+                                <div key={ticker} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, minWidth: 0, background: "var(--elev)", border: "0.5px solid var(--bdrs)", borderRadius: 8, padding: "7px 8px" }}>
+                                  <span style={{ color: "var(--B)", fontSize: 11, fontWeight: 900 }}>{ticker}</span>
+                                  <CfBadge sig={tickerContentToSig(matrix[bucket.date]?.[ticker])} compact />
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+            {visibleTickers.length === 0 && <div style={{ padding: 28, textAlign: "center", color: "var(--t3)" }}>Không có mã phù hợp.</div>}
+          </div>
+        ) : (
+          <CashFlowMatrixTable
+            collapsedInd={collapsedInd}
+            colCount={colCount}
+            groupStarts={groupStarts}
+            groups={groups}
+            matrix={matrix}
+            pageDates={pageDates}
+            safePage={safePage}
+            activeDate={dateInputValue}
+            branchIndustrySigByDate={branchIndustrySigByDate}
+            toggleCollapse={toggleCollapse}
+            visibleTickers={visibleTickers}
+          />
+        )}
       </Card>
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>

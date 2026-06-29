@@ -77,14 +77,14 @@ export function IndustryPicker({ industries, hidden, industrySig, onToggle, onAl
     <div ref={ref} style={{ position: "relative", flexShrink: 0 }}>
       <button
         onClick={() => setOpen((o) => !o)}
-        style={{ minHeight: 30, display: "inline-flex", alignItems: "center", gap: 7, padding: "0 14px", borderRadius: 15, background: open ? "var(--Bs)" : "#111827", border: `1px solid ${open ? "var(--Bb)" : "#26324A"}`, color: "var(--B)", fontSize: 11, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", fontFamily: "inherit" }}
+        style={{ minHeight: 30, display: "inline-flex", alignItems: "center", gap: 7, padding: "0 14px", borderRadius: 15, background: open ? "var(--Bs)" : "var(--surf)", border: `1px solid ${open ? "var(--Bb)" : "var(--bdr)"}`, color: "var(--B)", fontSize: 11, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", fontFamily: "inherit" }}
       >
         <i className="ti ti-stack-2" style={{ fontSize: 14 }} />
         {selected} / {industries.length} ngành
         <i className={`ti ti-chevron-${open ? "up" : "down"}`} style={{ fontSize: 13 }} />
       </button>
       {open && (
-        <div style={{ position: "absolute", top: "calc(100% + 8px)", left: 0, zIndex: 60, width: 360, maxWidth: "calc(100vw - 28px)", maxHeight: 480, overflowY: "auto", background: "var(--surf)", border: "1px solid var(--bdr)", borderRadius: 12, padding: "0 10px 10px", boxShadow: "0 16px 48px rgba(0,0,0,.45)" }}>
+        <div style={{ position: "absolute", top: "calc(100% + 8px)", left: 0, zIndex: 60, width: 360, maxWidth: "calc(100vw - 28px)", maxHeight: 480, overflowY: "auto", background: "var(--surf)", border: "1px solid var(--bdr)", borderRadius: 12, padding: "0 10px 10px", boxShadow: "0 16px 42px rgba(15,23,42,.18)" }}>
           <div style={{ position: "sticky", top: 0, zIndex: 2, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0 10px", background: "var(--surf)", borderBottom: "1px solid var(--bdr)" }}>
             <span style={{ fontSize: 11, fontWeight: 800, color: "var(--t3)", textTransform: "uppercase", letterSpacing: ".07em" }}>Chọn ngành</span>
             <span style={{ display: "inline-flex", gap: 12 }}>
@@ -98,7 +98,7 @@ export function IndustryPicker({ industries, hidden, industrySig, onToggle, onAl
                 <span style={{ display: "inline-flex", alignItems: "center", gap: 7, color: "var(--t3)", fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".07em" }}>
                   {section.icon && <i className={section.icon} style={{ fontSize: 13, color: "#ffd166" }} />}
                   {section.title}
-                  <span style={{ minWidth: 24, height: 18, padding: "0 7px", borderRadius: 7, display: "inline-flex", alignItems: "center", justifyContent: "center", background: "#1f2b40", color: "var(--t3)", fontSize: 11, fontWeight: 800 }}>{section.items.length}</span>
+                  <span style={{ minWidth: 24, height: 18, padding: "0 7px", borderRadius: 7, display: "inline-flex", alignItems: "center", justifyContent: "center", background: "var(--elev)", color: "var(--t3)", fontSize: 11, fontWeight: 800 }}>{section.items.length}</span>
                 </span>
                 <span style={{ display: "inline-flex", alignItems: "center", gap: 14 }}>
                   <button onClick={() => onShowIndustries?.(section.items)} style={{ ...pickerActionStyle, color: "var(--B)" }}>Tất cả</button>

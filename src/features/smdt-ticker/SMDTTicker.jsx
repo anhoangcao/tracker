@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { valToHmCls } from "../../styles/tokens";
 import { useSMDTTicker, useRealtimeSMDTTickerFeed } from "../../data/useSMDTTicker";
 import { useBranchPath } from "../../data/useBranchPath";
+import { useNarrow } from "../../app/useNarrow";
 import { fmtDay, fmtFull, fmtNum } from "../../app/formatters";
 import { Card, Pagination, HM, Banner, LiveFooter } from "../../components/ui";
 import { HeatLegend, SMDTToolbarPill, SMDTSearchPill, linkBtn } from "../../components/ui/ModuleControls";
@@ -55,6 +56,7 @@ function getSmdtSig(value) {
 }
 
 export function ModSMDTMa() {
+  const narrow = useNarrow();
   const { tickers, datesAsc, matrix, status, error, updatedAt, refresh, applyTick } = useSMDTTicker();
   const { connected: live } = useRealtimeSMDTTickerFeed(applyTick);
   const { tickerToBranch, status: branchPathStatus, error: branchPathError, refresh: refreshBranchPath } = useBranchPath();
@@ -209,7 +211,7 @@ export function ModSMDTMa() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "nowrap", overflow: "visible", paddingBottom: 2 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: narrow ? "wrap" : "nowrap", overflow: "visible", paddingBottom: 2 }}>
         <IndustryPicker
           industries={industries}
           hidden={hiddenInd}
@@ -271,7 +273,7 @@ export function ModSMDTMa() {
           </select>
           <i className="ti ti-chevron-down" style={{ fontSize: 12, color: "var(--t4)" }} />
         </SMDTToolbarPill>
-        <SMDTSearchPill placeholder="Tìm mã..." value={query} onChange={(e) => setQuery(e.target.value)} style={{ width: 118, padding: "0 10px", flexShrink: 0 }} />
+        <SMDTSearchPill placeholder="Tìm mã..." value={query} onChange={(e) => setQuery(e.target.value)} style={{ width: narrow ? "100%" : 118, padding: "0 10px", flexShrink: narrow ? 1 : 0 }} />
       </div>
 
       {status === "loading" && !datesDesc.length && <Banner>Đang tải dữ liệu SMDT cổ phiếu…</Banner>}
@@ -284,6 +286,64 @@ export function ModSMDTMa() {
       )}
 
       <Card noPad>
+        {narrow ? (
+          <div style={{ display: "grid", gap: 10, padding: 12 }}>
+            {pageDates.map((date, di) => {
+              const isLatest = di === 0 && safePage === 1;
+              const isActive = dateInputValue === toDateInputValue(date);
+              return (
+                <div key={date} style={{ background: isActive || isLatest ? "var(--elev)" : "var(--surf)", border: "0.5px solid var(--bdr)", borderRadius: 11, padding: "12px 13px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 10 }}>
+                    <span style={{ color: "var(--t1)", fontSize: 13, fontWeight: 800 }}>{fmtDay(date)}</span>
+                    {isLatest && <span style={{ fontSize: 8, background: "var(--Bs)", color: "var(--B)", borderRadius: 3, padding: "1px 5px", fontWeight: 800 }}>HN</span>}
+                    <span style={{ marginLeft: "auto", color: "var(--t4)", fontSize: 11 }}>{fmtFull(date)}</span>
+                  </div>
+                  <div style={{ display: "grid", gap: 9 }}>
+                    {groups.map((g) => {
+                      const collapsed = collapsedInd.has(g.industry);
+                      const values = g.tickers.map((tk) => matrix[tk.key]?.[date]).filter(Number.isFinite);
+                      const avg = values.length ? values.reduce((a, v) => a + v, 0) / values.length : null;
+                      const avgCls = valToHmCls(avg);
+                      return (
+                        <div key={g.industry} style={{ background: "var(--surf)", border: "0.5px solid var(--bdrs)", borderRadius: 9, padding: "9px 10px" }}>
+                          <button
+                            type="button"
+                            onClick={() => toggleCollapse(g.industry)}
+                            style={{ width: "100%", display: "flex", alignItems: "center", gap: 7, border: "none", background: "transparent", padding: 0, color: "var(--t2)", fontFamily: "inherit", cursor: "pointer" }}
+                          >
+                            <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 11, fontWeight: 800, textTransform: "uppercase" }}>{g.industry}</span>
+                            <span style={{ marginLeft: "auto", color: "var(--t4)", fontSize: 10, fontWeight: 800 }}>{g.tickers.length} mã</span>
+                            <span style={{ color: "var(--t4)", fontSize: 14 }}>{collapsed ? "›" : "‹"}</span>
+                          </button>
+                          {collapsed ? (
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginTop: 8 }}>
+                              <span style={{ color: "var(--t4)", fontSize: 11 }}>Tổng hợp</span>
+                              {avgCls ? <HM cls={avgCls} val={avg.toFixed(2)} /> : <span style={{ color: "var(--t4)" }}>—</span>}
+                            </div>
+                          ) : (
+                            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(88px, 1fr))", gap: 7, marginTop: 8 }}>
+                              {g.tickers.map((tk) => {
+                                const v = matrix[tk.key]?.[date];
+                                const cls = valToHmCls(v);
+                                return (
+                                  <div key={tk.key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, minWidth: 0, background: "var(--elev)", border: "0.5px solid var(--bdrs)", borderRadius: 8, padding: "7px 8px" }}>
+                                    <span title={tk.name} style={{ color: "var(--B)", fontSize: 11, fontWeight: 900 }}>{tk.key}</span>
+                                    {cls ? <HM cls={cls} val={v.toFixed(0)} /> : <span style={{ color: "var(--t4)" }}>—</span>}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+            {visibleTickers.length === 0 && <div style={{ padding: 28, textAlign: "center", color: "var(--t3)" }}>Không tìm thấy mã phù hợp.</div>}
+          </div>
+        ) : (
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, minWidth: Math.max(700, 150 + colCount * 76) }}>
             <thead>
@@ -362,6 +422,7 @@ export function ModSMDTMa() {
             </tbody>
           </table>
         </div>
+        )}
       </Card>
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
