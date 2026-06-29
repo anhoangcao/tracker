@@ -6,9 +6,9 @@ const API_BASE_URL = "/api/cashflow-ticker";
 const FULL_LIMIT = 500;
 const INITIAL_LIMIT = 25;
 const PERSIST_LIMIT = FULL_LIMIT;
-// Giữ đủ 500 phiên trong RAM (để lịch lùi tới 2025), nhưng chỉ lưu localStorage 150 phiên
+// Giữ đủ 500 phiên trong RAM (để lịch lùi tới 2025), nhưng chỉ lưu localStorage ít phiên
 // gần nhất — tránh QuotaExceededError. Lần mở lại sẽ refetch full 500 ngay nên không mất gì.
-const CACHE_PERSIST_LIMIT = 150;
+const CACHE_PERSIST_LIMIT = 30;
 const DEFAULT_REFRESH_MS = 15_000;
 const WARMUP_REFRESH_DELAYS = [1_000, 3_000, 6_000];
 const CACHE_KEY = "cashflow_ticker_data_cache_v5";
@@ -236,18 +236,24 @@ function getCachedData() {
 }
 
 function setCachedData(data) {
+  const serialize = (limit) => {
+    const buckets = Array.isArray(data.buckets) ? data.buckets.slice(-limit) : [];
+    return JSON.stringify({
+      buckets,
+      allowedTickers: data.allowedTickers || [],
+      updatedAt: data.updatedAt ? data.updatedAt.toISOString() : null,
+    });
+  };
   try {
-    const buckets = Array.isArray(data.buckets) ? data.buckets.slice(-CACHE_PERSIST_LIMIT) : [];
-    localStorage.setItem(
-      CACHE_KEY,
-      JSON.stringify({
-        buckets,
-        allowedTickers: data.allowedTickers || [],
-        updatedAt: data.updatedAt ? data.updatedAt.toISOString() : null,
-      })
-    );
+    localStorage.setItem(CACHE_KEY, serialize(CACHE_PERSIST_LIMIT));
   } catch (e) {
-    console.warn("Failed to save CashFlowTicker cache:", e);
+    try {
+      localStorage.removeItem(CACHE_KEY);
+      for (const key of LEGACY_CACHE_KEYS) localStorage.removeItem(key);
+      localStorage.setItem(CACHE_KEY, serialize(8));
+    } catch (retryError) {
+      console.warn("Failed to save CashFlowTicker cache:", retryError);
+    }
   }
 }
 

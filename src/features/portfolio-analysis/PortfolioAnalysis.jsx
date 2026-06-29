@@ -9,6 +9,7 @@ import { useSMDT } from "../../data/useSMDT";
 import { useCashFlowBranch, contentToSig } from "../../data/useCashFlowBranch";
 import { useBranchPath } from "../../data/useBranchPath";
 import { useTotalTrade } from "../../data/useTotalTrade";
+import { useStockSignal } from "../../data/useStockSignal";
 import { Banner, Card } from "../../components/ui";
 import { CfBadge } from "../cash-flow-ticker/CfBadge";
 
@@ -177,6 +178,14 @@ function changePct(point) {
   return ((point.close - point.open) / point.open) * 100;
 }
 
+function getStockSignalForDate(stockSig, dateValue) {
+  const points = Array.isArray(stockSig?.points) ? stockSig.points : [];
+  if (!points.length) return stockSig;
+  const eligible = points.filter((point) => !dateValue || toDateInputValue(point.date) <= dateValue);
+  const target = eligible[eligible.length - 1];
+  return target || points[points.length - 1] || stockSig;
+}
+
 function EvalBadge({ value, full }) {
   const meta = {
     DS_DN: { label: "Đúng sóng, đúng ngành", bg: "var(--Gs)", border: "var(--Gb)", color: "var(--G)" },
@@ -188,7 +197,13 @@ function EvalBadge({ value, full }) {
 
 function SignalBadge({ value }) {
   const buy = value === "MUA";
-  return <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 58, padding: "5px 10px", borderRadius: 7, background: buy ? "var(--Gs)" : "var(--Rs)", border: `0.5px solid ${buy ? "var(--Gb)" : "var(--Rb)"}`, color: buy ? "var(--G)" : "var(--R)", fontSize: 11, fontWeight: 800 }}>{buy ? "MUA" : "BÁN"}</span>;
+  const sell = value === "BAN" || value === "BÁN";
+  const tone = buy
+    ? { bg: "var(--Gs)", border: "var(--Gb)", color: "var(--G)", label: "MUA" }
+    : sell
+      ? { bg: "var(--Rs)", border: "var(--Rb)", color: "var(--R)", label: "BÁN" }
+      : { bg: "var(--As)", border: "var(--Ab)", color: "var(--A)", label: value || "—" };
+  return <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 58, padding: "5px 10px", borderRadius: 7, background: tone.bg, border: `0.5px solid ${tone.border}`, color: tone.color, fontSize: 11, fontWeight: 800 }}>{tone.label}</span>;
 }
 
 function ScoreDonut({ dn, sn, ss, total }) {
@@ -433,6 +448,7 @@ export function ModPhanTichDanhMuc() {
   const cashBranch = useCashFlowBranch();
   const branchPath = useBranchPath();
   const totalTrade = useTotalTrade();
+  const stockSignal = useStockSignal();
 
   const codes = useMemo(() => parseCodes(input), [input]);
   const datesDesc = useMemo(() => sortDatesDesc(smdtTicker.datesAsc), [smdtTicker.datesAsc]);
@@ -464,6 +480,9 @@ export function ModPhanTichDanhMuc() {
       const branchSig = lookupIndustry(branchSigLookup, industry);
       const branchSmdt = lookupIndustry(branchSmdtLookup, industry);
       const tradePoint = findTradePoint(totalTrade.matrix[ticker], activeDateValue);
+      const stockSig = getStockSignalForDate(stockSignal.signalByTicker[ticker], activeDateValue);
+      const apiSignal = stockSig?.signal || null;
+      const apiWeight = Number.isFinite(stockSig?.hold) ? stockSig.hold : Number.isFinite(stockSig?.weight) ? stockSig.weight : null;
       const row = {
         ticker,
         found: true,
@@ -474,13 +493,14 @@ export function ModPhanTichDanhMuc() {
         tickerSig,
         branchSig,
         tradePoint,
-        weight: Math.round(100 / foundCount),
+        weight: apiWeight ?? Math.round(100 / foundCount),
+        signalSource: apiSignal ? "api" : "fallback",
       };
-      row.signal = calcSignal(row);
+      row.signal = apiSignal || calcSignal(row);
       row.evalKey = calcEval(row);
       return row;
     });
-  }, [activeDate, activeDateValue, analyzedCodes, branchPath.tickerToBranch, branchSigLookup, branchSmdtLookup, cashByTicker, smdtTicker.matrix, tickerNameByKey, totalTrade.matrix]);
+  }, [activeDate, activeDateValue, analyzedCodes, branchPath.tickerToBranch, branchSigLookup, branchSmdtLookup, cashByTicker, smdtTicker.matrix, stockSignal.signalByTicker, tickerNameByKey, totalTrade.matrix]);
 
   const foundRows = useMemo(() => rows.filter((row) => row.found), [rows]);
   const { dn, sn, ss, score } = useMemo(() => scoreCalc(foundRows), [foundRows]);
@@ -512,7 +532,7 @@ export function ModPhanTichDanhMuc() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-      {(smdtTicker.error || cashTicker.error || smdtBranch.error || cashBranch.error || totalTrade.error || branchPath.error) && (
+      {(smdtTicker.error || cashTicker.error || smdtBranch.error || cashBranch.error || totalTrade.error || branchPath.error || stockSignal.error) && (
         <Banner tone="error">Một số nguồn dữ liệu chưa tải được, kết quả có thể thiếu ô.</Banner>
       )}
       <div style={{ display: "grid", gridTemplateColumns: narrow ? "1fr" : "minmax(0,1fr) minmax(360px,1fr)", gap: 12 }}>
@@ -521,7 +541,7 @@ export function ModPhanTichDanhMuc() {
       </div>
       {narrow ? <DetailCards rows={rows} codes={analyzedCodes} dateLabel={dateLabel} /> : <DetailTable rows={rows} codes={analyzedCodes} dateLabel={dateLabel} />}
       <div style={{ color: "var(--t4)", fontSize: 11 }}>
-        Tín hiệu MUA/BÁN được suy luận từ SMDT mã, dòng tiền mã và dòng tiền ngành bằng dữ liệu hiện có.
+        Tín hiệu và tỷ trọng lấy từ StockSignal API khi có dữ liệu; các mã thiếu tín hiệu tạm dùng suy luận từ SMDT và dòng tiền.
       </div>
     </div>
   );

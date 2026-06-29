@@ -17,12 +17,18 @@ let totalTradeTickerDevRefreshPromise = null;
 let totalTradeDevCache = null;
 let totalTradeDevLastFetched = 0;
 let totalTradeDevRefreshPromise = null;
+let totalTradeRealDevCache = null;
+let totalTradeRealDevLastFetched = 0;
+let totalTradeRealDevRefreshPromise = null;
 let smdtTickerDevCache = null;
 let smdtTickerDevLastFetched = 0;
+let stockSignalDevCache = null;
+let stockSignalDevLastFetched = 0;
 let branchPathDevCache = null;
 let branchPathDevLastFetched = 0;
 const BRANCH_PATH_CACHE_DURATION = 5 * 60 * 1000; // Thành phần ngành/mã ít đổi → cache dài hơn.
 const TOTAL_TRADE_CACHE_DURATION = 5 * 60 * 1000;
+const TOTAL_TRADE_REAL_CACHE_DURATION = 10 * 1000;
 const CACHE_DURATION = 3 * 1000; // Realtime là đường chính; proxy chỉ phục vụ snapshot ban đầu + lưới dự phòng, giữ ngắn để tươi.
 const API_ACCOUNT = "thao.dtt";
 const STOCK_WAVE_REPLY_KEYS = ["StockWaveReply", "StockWaveRequest"];
@@ -114,6 +120,24 @@ async function fetchTotalTradeFromSource() {
   return data;
 }
 
+async function fetchTotalTradeRealFromSource() {
+  const response = await fetch("https://stocktraders.vn/service/data/getTotalTradeReal", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ TotalTradeRealRequest: { account: API_ACCOUNT } })
+  });
+  if (!response.ok) throw new Error(`TotalTradeReal HTTP ${response.status}`);
+
+  const data = await response.json();
+  const reply = data?.TotalTradeRealReply || data?.TotalTradeRealRequest || {};
+  const code = reply?.codeReply?.codeID;
+  const stockTotalReals = reply?.stockTotalReals;
+  if (code && code !== "S0000") throw new Error(`TotalTradeReal API response code ${code}`);
+  if (!Array.isArray(stockTotalReals)) throw new Error("TotalTradeReal API response missing stockTotalReals");
+
+  return data;
+}
+
 async function fetchTotalTradeTickersFromSource() {
   const data = await fetchTotalTradeFromSource();
   const reply = data?.TotalTradeReply || data?.TotalTradeRequest || {};
@@ -177,6 +201,27 @@ async function refreshTotalTradeDevCache() {
     });
 
   return totalTradeDevRefreshPromise;
+}
+
+async function refreshTotalTradeRealDevCache() {
+  if (totalTradeRealDevRefreshPromise) return totalTradeRealDevRefreshPromise;
+
+  totalTradeRealDevRefreshPromise = fetchTotalTradeRealFromSource()
+    .then((data) => {
+      totalTradeRealDevCache = data;
+      totalTradeRealDevLastFetched = Date.now();
+      return data;
+    })
+    .catch((err) => {
+      console.error("Local dev total trade real proxy fetch error:", err);
+      if (!totalTradeRealDevCache) throw err;
+      return totalTradeRealDevCache;
+    })
+    .finally(() => {
+      totalTradeRealDevRefreshPromise = null;
+    });
+
+  return totalTradeRealDevRefreshPromise;
 }
 
 function filterCashTickerDatas(datas, allowedTickerSet) {
@@ -437,6 +482,32 @@ function smdtDevPlugin() {
             res.setHeader("Content-Type", "application/json");
             res.end(JSON.stringify({ error: err.message }));
           }
+        } else if (reqUrl.startsWith("/api/total-trade-real")) {
+          const host = req.headers.host || "localhost:3000";
+          const parsedUrl = new URL(reqUrl, `http://${host}`);
+          const wantsFresh = parsedUrl.searchParams.get("fresh") === "1" || parsedUrl.searchParams.get("fresh") === "true";
+          const now = Date.now();
+
+          try {
+            if (!totalTradeRealDevCache || wantsFresh || now - totalTradeRealDevLastFetched > TOTAL_TRADE_REAL_CACHE_DURATION) {
+              await refreshTotalTradeRealDevCache();
+            }
+            const reply = totalTradeRealDevCache?.TotalTradeRealReply || totalTradeRealDevCache?.TotalTradeRealRequest || {};
+            const out = {
+              TotalTradeRealReply: {
+                codeReply: reply.codeReply || { codeID: "S0000", codeName: "SUCSESS" },
+                stockTotalReals: Array.isArray(reply.stockTotalReals) ? reply.stockTotalReals : []
+              }
+            };
+            res.statusCode = 200;
+            res.setHeader("Content-Type", "application/json");
+            res.setHeader("Cache-Control", "no-store, max-age=0");
+            res.end(JSON.stringify(out));
+          } catch (err) {
+            res.statusCode = 502;
+            res.setHeader("Content-Type", "application/json");
+            res.end(JSON.stringify({ error: err.message }));
+          }
         } else if (reqUrl.startsWith("/api/total-trade")) {
           const host = req.headers.host || "localhost:3000";
           const parsedUrl = new URL(reqUrl, `http://${host}`);
@@ -636,6 +707,36 @@ function smdtDevPlugin() {
             res.setHeader("Content-Type", "application/json");
             res.end(JSON.stringify({ error: err.message }));
           }
+        } else if (reqUrl.startsWith("/api/stock-signal")) {
+          const now = Date.now();
+          if (!stockSignalDevCache || (now - stockSignalDevLastFetched > CACHE_DURATION)) {
+            try {
+              const response = await fetch("https://stocktraders.vn/service/data/getStockSignal", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ StockSignalRequest: { account: API_ACCOUNT } })
+              });
+              if (!response.ok) throw new Error(`HTTP ${response.status}`);
+              const data = await response.json();
+              const code = data?.StockSignalReply?.codeReply?.codeID || data?.StockSignalRequest?.codeReply?.codeID;
+              if (code && code !== "S0000") throw new Error(`API response code ${code}`);
+              stockSignalDevCache = data;
+              stockSignalDevLastFetched = now;
+            } catch (err) {
+              console.error("Local dev stock signal proxy fetch error:", err);
+              if (!stockSignalDevCache) {
+                res.statusCode = 502;
+                res.setHeader("Content-Type", "application/json");
+                res.end(JSON.stringify({ error: err.message }));
+                return;
+              }
+            }
+          }
+
+          res.statusCode = 200;
+          res.setHeader("Content-Type", "application/json");
+          res.setHeader("Cache-Control", "no-store, max-age=0");
+          res.end(JSON.stringify(stockSignalDevCache));
         } else if (reqUrl.startsWith("/api/branch-path")) {
           const now = Date.now();
           if (!branchPathDevCache || (now - branchPathDevLastFetched > BRANCH_PATH_CACHE_DURATION)) {

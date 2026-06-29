@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 const API_URL = "/api/total-trade";
 const CACHE_KEY = "total_trade_data_cache_v1";
 const DEFAULT_REFRESH_MS = 5 * 60_000;
-const CACHE_PERSIST_LIMIT = 220;
+const CACHE_PERSIST_LIMIT = 45;
 
 let globalCache = null;
 
@@ -67,24 +67,29 @@ function getCachedData() {
 }
 
 function setCachedData(data) {
-  try {
+  const buildPayload = (limit) => {
     const matrix = {};
     for (const ticker in data.matrix) {
       const row = data.matrix[ticker] || {};
-      const dates = Object.keys(row).sort().slice(-CACHE_PERSIST_LIMIT);
+      const dates = Object.keys(row).sort().slice(-limit);
       matrix[ticker] = {};
       for (const date of dates) matrix[ticker][date] = row[date];
     }
-    localStorage.setItem(
-      CACHE_KEY,
-      JSON.stringify({
-        tickers: data.tickers,
-        matrix,
-        updatedAt: data.updatedAt ? data.updatedAt.toISOString() : null,
-      })
-    );
+    return JSON.stringify({
+      tickers: data.tickers,
+      matrix,
+      updatedAt: data.updatedAt ? data.updatedAt.toISOString() : null,
+    });
+  };
+  try {
+    localStorage.setItem(CACHE_KEY, buildPayload(CACHE_PERSIST_LIMIT));
   } catch (e) {
-    console.warn("Failed to save TotalTrade cache:", e);
+    try {
+      localStorage.removeItem(CACHE_KEY);
+      localStorage.setItem(CACHE_KEY, buildPayload(12));
+    } catch (retryError) {
+      console.warn("Failed to save TotalTrade cache:", retryError);
+    }
   }
 }
 

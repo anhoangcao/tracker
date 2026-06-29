@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { INDICES } from "../../data/dashboardData";
+import { useMarketIndices } from "../../data/useMarketIndices";
 import { mono } from "../../styles/tokens";
 import { useTheme } from "../../theme";
 
@@ -17,6 +17,7 @@ function useClock() {
 
 export function Topbar({ mod, isMobile, onMenuToggle }) {
   const { t, dark, toggle } = useTheme();
+  const { indices } = useMarketIndices();
   const now = useClock();
   const stamp = `${now.toLocaleDateString("vi-VN")} · ${now.toLocaleTimeString("vi-VN")}`;
 
@@ -48,11 +49,11 @@ export function Topbar({ mod, isMobile, onMenuToggle }) {
         </div>
         {!isMobile && (
           <div style={{ display: "flex", gap: 7 }}>
-            {INDICES.map((idx) => (
-              <div key={idx.name} style={{ display: "flex", alignItems: "baseline", gap: 4, background: "var(--elev)", border: "0.5px solid var(--bdr)", borderRadius: 7, padding: "5px 10px" }}>
+            {indices.map((idx) => (
+              <div key={idx.name} title={idx.live ? "Dữ liệu từ getTotalTradeReal" : "Chưa có dữ liệu index trong getTotalTradeReal"} style={{ display: "flex", alignItems: "baseline", gap: 4, background: "var(--elev)", border: "0.5px solid var(--bdr)", borderRadius: 7, padding: "5px 10px" }}>
                 <span style={{ fontSize: 10, color: "var(--t3)", fontWeight: 600, textTransform: "uppercase", letterSpacing: ".04em" }}>{idx.name}</span>
                 <span style={{ fontSize: 13, fontWeight: 700, color: "var(--t1)", ...mono }}>{idx.val}</span>
-                <span style={{ fontSize: 10, color: t.G, fontWeight: 600 }}>{idx.pct}</span>
+                <span style={{ fontSize: 10, color: idx.rawPct == null ? "var(--t3)" : idx.rawPct >= 0 ? t.G : t.R, fontWeight: 600 }}>{idx.pct}</span>
               </div>
             ))}
           </div>
