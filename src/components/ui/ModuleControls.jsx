@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { fmtFull } from "../../app/formatters";
 import { useTheme } from "../../theme";
 
@@ -87,8 +88,11 @@ export function SMDTToolbarPill({ children, as: Tag = "div", style }) {
 
 export function DateSessionSelect({ value, dates, onChange, buttonStyle }) {
   const rootRef = useRef(null);
+  const buttonRef = useRef(null);
   const [open, setOpen] = useState(false);
   const [pickerMode, setPickerMode] = useState("day");
+  const [anchorRect, setAnchorRect] = useState(null);
+  const [isMobileCalendar, setIsMobileCalendar] = useState(() => (typeof window !== "undefined" ? window.innerWidth < 768 : false));
   const availableValues = useMemo(() => {
     return [...new Set((dates || []).map(toDateInputValue).filter(Boolean))].sort();
   }, [dates]);
@@ -117,19 +121,29 @@ export function DateSessionSelect({ value, dates, onChange, buttonStyle }) {
 
   useEffect(() => {
     if (!open) return undefined;
+    const updatePosition = () => {
+      setIsMobileCalendar(window.innerWidth < 768);
+      setAnchorRect(buttonRef.current?.getBoundingClientRect() || null);
+    };
     const onPointerDown = (event) => {
-      if (!rootRef.current?.contains(event.target)) setOpen(false);
+      if (rootRef.current?.contains(event.target) || buttonRef.current?.contains(event.target)) return;
+      setOpen(false);
     };
     const onKeyDown = (event) => {
       if (event.key === "Escape") setOpen(false);
     };
+    updatePosition();
     document.addEventListener("mousedown", onPointerDown);
     document.addEventListener("touchstart", onPointerDown, { passive: true });
     document.addEventListener("keydown", onKeyDown);
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
     return () => {
       document.removeEventListener("mousedown", onPointerDown);
       document.removeEventListener("touchstart", onPointerDown);
       document.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
     };
   }, [open]);
 
@@ -138,10 +152,162 @@ export function DateSessionSelect({ value, dates, onChange, buttonStyle }) {
     ...Array.from({ length: firstOffset }, () => null),
     ...Array.from({ length: daysInMonth(viewMonth) }, (_, index) => index + 1),
   ];
+  const viewportWidth = typeof window !== "undefined" ? window.innerWidth : 360;
+  const viewportHeight = typeof window !== "undefined" ? window.innerHeight : 640;
+  const desktopLeft = Math.min(Math.max((anchorRect?.left || 0) + (anchorRect?.width || 0) / 2, 134), viewportWidth - 134);
+  const desktopTop = Math.max(12, Math.min((anchorRect?.bottom || 0) + 8, viewportHeight - 308));
+  const popoverStyle = isMobileCalendar
+    ? calendarMobilePopover
+    : { ...calendarPopover, top: desktopTop, left: desktopLeft, transform: "translateX(-50%)" };
+  const calendarLayer = open && typeof document !== "undefined" ? createPortal(
+    <div
+      ref={rootRef}
+      style={isMobileCalendar ? calendarBackdrop : calendarLayerBase}
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) setOpen(false);
+      }}
+      onTouchStart={(event) => {
+        if (event.target === event.currentTarget) setOpen(false);
+      }}
+    >
+      <div role="dialog" aria-label="Chọn phiên" style={popoverStyle}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 10 }}>
+          <button
+            type="button"
+            disabled={pickerMode === "day" ? !canGoPrev : pickerMode === "month" ? !canGoPrevYear : true}
+            onClick={() => {
+              if (pickerMode === "day") setViewMonth((current) => addMonths(current, -1));
+              if (pickerMode === "month" && canGoPrevYear) setViewYear(availableYears[yearIndex - 1]);
+            }}
+            style={{ ...calendarNavBtn, opacity: (pickerMode === "day" ? canGoPrev : pickerMode === "month" ? canGoPrevYear : false) ? 1 : 0.35, cursor: (pickerMode === "day" ? canGoPrev : pickerMode === "month" ? canGoPrevYear : false) ? "pointer" : "default" }}
+          >
+            <i className="ti ti-chevron-left" style={{ fontSize: 14 }} />
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (pickerMode === "day") {
+                setViewYear(viewMonth.getFullYear());
+                setPickerMode("month");
+              } else if (pickerMode === "month") {
+                setPickerMode("year");
+              } else {
+                setPickerMode("month");
+              }
+            }}
+            style={calendarTitleBtn}
+          >
+            {pickerMode === "day" ? monthLabel(viewMonth) : pickerMode === "month" ? viewYear : "Chọn năm"}
+            <i className={`ti ${pickerMode === "year" ? "ti-chevron-up" : "ti-chevron-down"}`} style={{ fontSize: 12, color: "var(--t4)" }} />
+          </button>
+          <button
+            type="button"
+            disabled={pickerMode === "day" ? !canGoNext : pickerMode === "month" ? !canGoNextYear : true}
+            onClick={() => {
+              if (pickerMode === "day") setViewMonth((current) => addMonths(current, 1));
+              if (pickerMode === "month" && canGoNextYear) setViewYear(availableYears[yearIndex + 1]);
+            }}
+            style={{ ...calendarNavBtn, opacity: (pickerMode === "day" ? canGoNext : pickerMode === "month" ? canGoNextYear : false) ? 1 : 0.35, cursor: (pickerMode === "day" ? canGoNext : pickerMode === "month" ? canGoNextYear : false) ? "pointer" : "default" }}
+          >
+            <i className="ti ti-chevron-right" style={{ fontSize: 14 }} />
+          </button>
+        </div>
+        {pickerMode === "day" && (
+          <>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4, marginBottom: 5 }}>
+              {["T2", "T3", "T4", "T5", "T6", "T7", "CN"].map((day) => (
+                <div key={day} style={{ textAlign: "center", color: "var(--t4)", fontSize: 9, fontWeight: 900 }}>{day}</div>
+              ))}
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4 }}>
+              {cells.map((day, index) => {
+                if (!day) return <span key={`empty-${index}`} style={{ width: 28, height: 28 }} />;
+                const dateValue = dateValueOf(viewMonth.getFullYear(), viewMonth.getMonth(), day);
+                const enabled = availableSet.has(dateValue);
+                const selected = value === dateValue;
+                return (
+                  <button
+                    key={dateValue}
+                    type="button"
+                    disabled={!enabled}
+                    onClick={() => {
+                      onChange?.(dateValue);
+                      setOpen(false);
+                    }}
+                    style={{
+                      width: 28,
+                      height: 28,
+                      borderRadius: 7,
+                      border: `0.5px solid ${selected ? "var(--B)" : enabled ? "var(--bdr)" : "transparent"}`,
+                      background: selected ? "var(--B)" : enabled ? "var(--elev)" : "transparent",
+                      color: selected ? "#fff" : enabled ? "var(--t2)" : "var(--t4)",
+                      opacity: enabled ? 1 : 0.35,
+                      cursor: enabled ? "pointer" : "default",
+                      fontSize: 11,
+                      fontWeight: selected ? 850 : 700,
+                      fontFamily: "inherit",
+                      padding: 0,
+                    }}
+                  >
+                    {day}
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        )}
+        {pickerMode === "month" && (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6 }}>
+            {MONTH_NAMES.map((label, month) => {
+              const monthValue = monthValueOf(viewYear, month);
+              const enabled = availableMonthSet.has(monthValue);
+              const selected = viewMonth.getFullYear() === viewYear && viewMonth.getMonth() === month;
+              return (
+                <button
+                  key={label}
+                  type="button"
+                  disabled={!enabled}
+                  onClick={() => {
+                    setViewMonth(new Date(viewYear, month, 1));
+                    setPickerMode("day");
+                  }}
+                  style={{ ...calendarChoiceBtn, background: selected ? "var(--B)" : enabled ? "var(--elev)" : "transparent", borderColor: selected ? "var(--B)" : enabled ? "var(--bdr)" : "transparent", color: selected ? "#fff" : enabled ? "var(--t2)" : "var(--t4)", opacity: enabled ? 1 : 0.35, cursor: enabled ? "pointer" : "default" }}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        )}
+        {pickerMode === "year" && (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6, maxHeight: 188, overflowY: "auto", paddingRight: 2 }}>
+            {availableYears.map((year) => {
+              const selected = year === viewYear;
+              return (
+                <button
+                  key={year}
+                  type="button"
+                  onClick={() => {
+                    setViewYear(year);
+                    setPickerMode("month");
+                  }}
+                  style={{ ...calendarChoiceBtn, background: selected ? "var(--B)" : "var(--elev)", borderColor: selected ? "var(--B)" : "var(--bdr)", color: selected ? "#fff" : "var(--t2)" }}
+                >
+                  {year}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>,
+    document.body
+  ) : null;
 
   return (
-    <div ref={rootRef} style={{ position: "relative", display: "inline-flex" }}>
+    <div style={{ position: "relative", display: "inline-flex" }}>
       <button
+        ref={buttonRef}
         type="button"
         onClick={() => setOpen((current) => !current)}
         aria-haspopup="dialog"
@@ -151,147 +317,13 @@ export function DateSessionSelect({ value, dates, onChange, buttonStyle }) {
         <i className="ti ti-calendar" style={{ fontSize: 13, color: "var(--t4)" }} />
         {value ? fmtFull(value) : "—"}
       </button>
-      {open && (
-        <div role="dialog" aria-label="Chọn phiên" style={calendarPopover}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 10 }}>
-            <button
-              type="button"
-              disabled={pickerMode === "day" ? !canGoPrev : pickerMode === "month" ? !canGoPrevYear : true}
-              onClick={() => {
-                if (pickerMode === "day") setViewMonth((current) => addMonths(current, -1));
-                if (pickerMode === "month" && canGoPrevYear) setViewYear(availableYears[yearIndex - 1]);
-              }}
-              style={{ ...calendarNavBtn, opacity: (pickerMode === "day" ? canGoPrev : pickerMode === "month" ? canGoPrevYear : false) ? 1 : 0.35, cursor: (pickerMode === "day" ? canGoPrev : pickerMode === "month" ? canGoPrevYear : false) ? "pointer" : "default" }}
-            >
-              <i className="ti ti-chevron-left" style={{ fontSize: 14 }} />
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                if (pickerMode === "day") {
-                  setViewYear(viewMonth.getFullYear());
-                  setPickerMode("month");
-                } else if (pickerMode === "month") {
-                  setPickerMode("year");
-                } else {
-                  setPickerMode("month");
-                }
-              }}
-              style={calendarTitleBtn}
-            >
-              {pickerMode === "day" ? monthLabel(viewMonth) : pickerMode === "month" ? viewYear : "Chọn năm"}
-              <i className={`ti ${pickerMode === "year" ? "ti-chevron-up" : "ti-chevron-down"}`} style={{ fontSize: 12, color: "var(--t4)" }} />
-            </button>
-            <button
-              type="button"
-              disabled={pickerMode === "day" ? !canGoNext : pickerMode === "month" ? !canGoNextYear : true}
-              onClick={() => {
-                if (pickerMode === "day") setViewMonth((current) => addMonths(current, 1));
-                if (pickerMode === "month" && canGoNextYear) setViewYear(availableYears[yearIndex + 1]);
-              }}
-              style={{ ...calendarNavBtn, opacity: (pickerMode === "day" ? canGoNext : pickerMode === "month" ? canGoNextYear : false) ? 1 : 0.35, cursor: (pickerMode === "day" ? canGoNext : pickerMode === "month" ? canGoNextYear : false) ? "pointer" : "default" }}
-            >
-              <i className="ti ti-chevron-right" style={{ fontSize: 14 }} />
-            </button>
-          </div>
-          {pickerMode === "day" && (
-            <>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4, marginBottom: 5 }}>
-                {["T2", "T3", "T4", "T5", "T6", "T7", "CN"].map((day) => (
-                  <div key={day} style={{ textAlign: "center", color: "var(--t4)", fontSize: 9, fontWeight: 900 }}>{day}</div>
-                ))}
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4 }}>
-                {cells.map((day, index) => {
-                  if (!day) return <span key={`empty-${index}`} style={{ width: 28, height: 28 }} />;
-                  const dateValue = dateValueOf(viewMonth.getFullYear(), viewMonth.getMonth(), day);
-                  const enabled = availableSet.has(dateValue);
-                  const selected = value === dateValue;
-                  return (
-                    <button
-                      key={dateValue}
-                      type="button"
-                      disabled={!enabled}
-                      onClick={() => {
-                        onChange?.(dateValue);
-                        setOpen(false);
-                      }}
-                      style={{
-                        width: 28,
-                        height: 28,
-                        borderRadius: 7,
-                        border: `0.5px solid ${selected ? "var(--B)" : enabled ? "var(--bdr)" : "transparent"}`,
-                        background: selected ? "var(--B)" : enabled ? "var(--elev)" : "transparent",
-                        color: selected ? "#fff" : enabled ? "var(--t2)" : "var(--t4)",
-                        opacity: enabled ? 1 : 0.35,
-                        cursor: enabled ? "pointer" : "default",
-                        fontSize: 11,
-                        fontWeight: selected ? 850 : 700,
-                        fontFamily: "inherit",
-                        padding: 0,
-                      }}
-                    >
-                      {day}
-                    </button>
-                  );
-                })}
-              </div>
-            </>
-          )}
-          {pickerMode === "month" && (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6 }}>
-              {MONTH_NAMES.map((label, month) => {
-                const monthValue = monthValueOf(viewYear, month);
-                const enabled = availableMonthSet.has(monthValue);
-                const selected = viewMonth.getFullYear() === viewYear && viewMonth.getMonth() === month;
-                return (
-                  <button
-                    key={label}
-                    type="button"
-                    disabled={!enabled}
-                    onClick={() => {
-                      setViewMonth(new Date(viewYear, month, 1));
-                      setPickerMode("day");
-                    }}
-                    style={{ ...calendarChoiceBtn, background: selected ? "var(--B)" : enabled ? "var(--elev)" : "transparent", borderColor: selected ? "var(--B)" : enabled ? "var(--bdr)" : "transparent", color: selected ? "#fff" : enabled ? "var(--t2)" : "var(--t4)", opacity: enabled ? 1 : 0.35, cursor: enabled ? "pointer" : "default" }}
-                  >
-                    {label}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-          {pickerMode === "year" && (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6, maxHeight: 188, overflowY: "auto", paddingRight: 2 }}>
-              {availableYears.map((year) => {
-                const selected = year === viewYear;
-                return (
-                  <button
-                    key={year}
-                    type="button"
-                    onClick={() => {
-                      setViewYear(year);
-                      setPickerMode("month");
-                    }}
-                    style={{ ...calendarChoiceBtn, background: selected ? "var(--B)" : "var(--elev)", borderColor: selected ? "var(--B)" : "var(--bdr)", color: selected ? "#fff" : "var(--t2)" }}
-                  >
-                    {year}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
+      {calendarLayer}
     </div>
   );
 }
 
 const calendarPopover = {
-  position: "absolute",
-  top: "calc(100% + 8px)",
-  left: "50%",
-  transform: "translateX(-50%)",
+  position: "fixed",
   width: 244,
   maxWidth: "calc(100vw - 24px)",
   padding: 10,
@@ -299,7 +331,38 @@ const calendarPopover = {
   background: "var(--surf)",
   border: "0.5px solid var(--bdr)",
   boxShadow: "0 18px 38px rgba(0,0,0,.28)",
-  zIndex: 1000,
+  zIndex: 10001,
+  pointerEvents: "auto",
+};
+
+const calendarLayerBase = {
+  position: "fixed",
+  inset: 0,
+  zIndex: 10000,
+  pointerEvents: "none",
+};
+
+const calendarBackdrop = {
+  position: "fixed",
+  inset: 0,
+  zIndex: 10000,
+  display: "flex",
+  alignItems: "flex-start",
+  justifyContent: "center",
+  padding: "calc(86px + env(safe-area-inset-top, 0px)) 12px calc(24px + env(safe-area-inset-bottom, 0px))",
+  boxSizing: "border-box",
+  background: "rgba(3, 7, 18, .42)",
+  overflowY: "auto",
+};
+
+const calendarMobilePopover = {
+  width: "min(286px, calc(100vw - 24px))",
+  padding: 12,
+  borderRadius: 12,
+  background: "var(--surf)",
+  border: "0.5px solid var(--bdr)",
+  boxShadow: "0 24px 52px rgba(0,0,0,.38)",
+  pointerEvents: "auto",
 };
 
 const calendarNavBtn = {
