@@ -182,8 +182,14 @@ function getStockSignalForDate(stockSig, dateValue) {
   const points = Array.isArray(stockSig?.points) ? stockSig.points : [];
   if (!points.length) return stockSig;
   const eligible = points.filter((point) => !dateValue || toDateInputValue(point.date) <= dateValue);
-  const target = eligible[eligible.length - 1];
-  return target || points[points.length - 1] || stockSig;
+  const latestHoldPoint = eligible[eligible.length - 1] || points[points.length - 1] || stockSig;
+  const tradePoint = dateValue ? eligible.findLast((point) => toDateInputValue(point.date) === dateValue && (point.trade === 1 || point.trade === 2)) : latestHoldPoint;
+  const trade = tradePoint?.trade;
+  const signal = trade === 1 ? "MUA" : trade === 2 ? "BAN" : "Nắm giữ";
+  const hold = Number.isFinite(latestHoldPoint?.hold) ? latestHoldPoint.hold : Number.isFinite(latestHoldPoint?.weight) ? latestHoldPoint.weight : null;
+  const percent = Number.isFinite(tradePoint?.percent) ? tradePoint.percent : null;
+  const weight = trade === 1 && Number.isFinite(hold) && Number.isFinite(percent) ? hold + percent : hold;
+  return { ...latestHoldPoint, signal, weight, hold, trade, tradePoint };
 }
 
 function EvalBadge({ value, full }) {
@@ -203,7 +209,7 @@ function SignalBadge({ value }) {
     : sell
       ? { bg: "var(--Rs)", border: "var(--Rb)", color: "var(--R)", label: "BÁN" }
       : { bg: "var(--As)", border: "var(--Ab)", color: "var(--A)", label: value || "—" };
-  return <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 58, padding: "5px 10px", borderRadius: 7, background: tone.bg, border: `0.5px solid ${tone.border}`, color: tone.color, fontSize: 11, fontWeight: 800 }}>{tone.label}</span>;
+  return <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 58, padding: "5px 10px", borderRadius: 7, background: tone.bg, border: `0.5px solid ${tone.border}`, color: tone.color, fontSize: 11, fontWeight: 800, whiteSpace: "nowrap" }}>{tone.label}</span>;
 }
 
 function ScoreDonut({ dn, sn, ss, total, mobile }) {
