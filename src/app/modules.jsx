@@ -6,6 +6,7 @@ import { ModSMDTMa } from "../features/smdt-ticker/SMDTTicker";
 import { ModTopMaManh } from "../features/top-strong-tickers/TopStrongTickers";
 import { ModDongTienTT } from "../features/market-flow/MarketFlow";
 import { ModPhanTichDanhMuc } from "../features/portfolio-analysis/PortfolioAnalysis";
+import { ModLoTrinhDanSong } from "../features/wave-path/WavePath";
 
 /* ─────────────────────────── MODULE REGISTRY ───────────────────────────
  * Mỗi module: tiêu đề + phụ đề cho topbar, render qua <ModuleView>.
@@ -17,6 +18,7 @@ export const MODULES = {
   "dong-tien-tt":    { title: "Thị trường",          sub: "Tổng hợp GTGD · Khối ngoại · Tự doanh" },
   "dong-tien-nganh": { title: "Dòng tiền ngành",     sub: "Chủ lực 6 ngành — theo dõi vào/ra theo ngày" },
   "smdt-nganh":      { title: "SMDT ngành",          sub: "Sức mạnh dòng tiền theo ngành · Heatmap" },
+  "lo-trinh-dan-song": { title: "Lộ trình dẫn sóng", sub: "Timeline ngành vượt ngưỡng SMDT · dữ liệu thật" },
   "dong-tien-cp":    { title: "Dòng tiền cổ phiếu",  sub: "Tín hiệu từng mã — theo dõi nhiều phiên" },
   "smdt-ma":         { title: "SMDT cổ phiếu",       sub: "SMDT từng cổ phiếu theo ngày · realtime" },
   "top-ma-manh":     { title: "Top mã mạnh",         sub: "Xếp hạng mã theo SMDT · dòng tiền mã/ngành" },
@@ -24,7 +26,7 @@ export const MODULES = {
 };
 
 export const SIDEBAR_GROUPS = {
-  industry: ["dong-tien-nganh", "smdt-nganh"],
+  industry: ["dong-tien-nganh", "smdt-nganh", "lo-trinh-dan-song"],
   stocks: ["dong-tien-cp", "smdt-ma", "top-ma-manh"],
   portfolio: ["portfolio-analysis"],
 };
@@ -39,6 +41,7 @@ export function ModuleView({ id }) {
   switch (id) {
     case "dashboard":       return <ModDashboard />;
     case "smdt-nganh":      return <ModSMDTNganh />;
+    case "lo-trinh-dan-song": return <ModLoTrinhDanSong />;
     case "dong-tien-nganh": return <ModDongTienNganh />;
     case "dong-tien-cp":    return <ModDongTienCP />;
     case "smdt-ma":         return <ModSMDTMa />;

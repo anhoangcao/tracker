@@ -91,6 +91,7 @@ export function Sidebar({ curMod, onNav, compact }) {
       <div style={{ maxHeight: nganhOpen ? 200 : 0, overflow: "hidden", transition: "max-height .25s ease" }}>
         {sub("dong-tien-nganh", "ti-trending-up", "Dòng tiền ngành")}
         {sub("smdt-nganh", "ti-table", "SMDT ngành")}
+        {sub("lo-trinh-dan-song", "ti-route", "Lộ trình dẫn sóng")}
       </div>
 
       {item(null, "ti-building-store", "Cổ phiếu", { onClick: () => setCpOpen((o) => !o), isParent: true, isOpen: cpOpen, subIds: CP_IDS })}
