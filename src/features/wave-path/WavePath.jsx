@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNarrow } from "../../app/useNarrow";
 import { useBranchPath } from "../../data/useBranchPath";
-import { CORE_BRANCHES, useRealtimeFeed, useSMDT } from "../../data/useSMDT";
-import { useRealtimeSMDTTickerFeed, useSMDTTicker } from "../../data/useSMDTTicker";
+import { CORE_BRANCHES } from "../../data/useSMDT";
+import { useSMDTBranchCross, useSMDTTickerCross } from "../../data/useSMDTCross";
 import { mono } from "../../styles/tokens";
 import { useTheme } from "../../theme";
 
@@ -1233,13 +1233,11 @@ function buildRows({ branches, datesAsc, matrix }) {
 export function ModLoTrinhDanSong() {
   const narrow = useNarrow();
   const { t } = useTheme();
-  const smdt = useSMDT();
-  const tickers = useSMDTTicker();
+  const smdt = useSMDTBranchCross();
+  const tickers = useSMDTTickerCross();
   const branchPath = useBranchPath();
-  useRealtimeFeed(smdt.applyTick);
-  useRealtimeSMDTTickerFeed(tickers.applyTick);
 
-  const [year, setYear] = useState(0);
+  const [year, setYear] = useState(null);
   const [query, setQuery] = useState("");
   const [selectedKey, setSelectedKey] = useState(null);
   const [highlightDate, setHighlightDate] = useState(null);
@@ -1269,6 +1267,11 @@ export function ModLoTrinhDanSong() {
   }, [selectedKey, showManage]);
 
   const years = useMemo(() => [...new Set(allRows.flatMap((row) => row.events.map((event) => event.date.slice(0, 4))))].sort(), [allRows]);
+  const latestYear = years[years.length - 1] ? Number(years[years.length - 1]) : null;
+
+  useEffect(() => {
+    if (year == null && latestYear != null) setYear(latestYear);
+  }, [latestYear, year]);
 
   const filteredRows = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -1331,8 +1334,7 @@ export function ModLoTrinhDanSong() {
 
       <div style={styles.controls}>
         <button type="button" onClick={() => setYear(0)} style={{ ...styles.chip, ...(year === 0 ? styles.activeChip : null) }}>Tất cả</button>
-        <select value={year} onChange={(e) => setYear(Number(e.target.value))} style={styles.select}>
-          <option value={0}>Chọn năm</option>
+        <select value={year || latestYear || ""} onChange={(e) => setYear(Number(e.target.value))} style={styles.select}>
           {years.map((item) => <option key={item} value={item}>{item}</option>)}
         </select>
         <div style={styles.searchBox}>
