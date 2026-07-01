@@ -376,12 +376,11 @@ function TopMetric({ label, children }) {
   );
 }
 
-function TopCard({ row, rank }) {
+function TopCard({ row }) {
   return (
     <div style={{ background: "var(--surf)", border: "0.5px solid var(--bdr)", borderRadius: 11, padding: "12px 13px" }}>
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 0 }}>
-          <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 26, height: 26, padding: "0 6px", borderRadius: 7, background: "var(--elev)", border: "0.5px solid var(--bdr)", color: "var(--t3)", fontSize: 12, fontWeight: 800, ...mono }}>{rank}</span>
           <div style={{ minWidth: 0 }}>
             <div style={{ color: "var(--B)", fontSize: 15, fontWeight: 900 }}>{row.ticker}</div>
             {row.name !== row.ticker && (
@@ -399,8 +398,8 @@ function TopCard({ row, rank }) {
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "11px 10px", marginTop: 11, paddingTop: 11, borderTop: "0.5px solid var(--bdrs)" }}>
         <TopMetric label="SMDT mã"><SmdtBadge value={row.smdt} /></TopMetric>
         <TopMetric label="SMDT ngành"><SmdtBadge value={row.branchSmdt} /></TopMetric>
-        <TopMetric label="TH cổ phiếu"><CfBadge sig={row.tickerSig} small /></TopMetric>
-        <TopMetric label="TH ngành"><CfBadge sig={row.branchSig} small /></TopMetric>
+        <TopMetric label="Dòng tiền cổ phiếu"><CfBadge sig={row.tickerSig} small /></TopMetric>
+        <TopMetric label="Dòng tiền ngành"><CfBadge sig={row.branchSig} small /></TopMetric>
       </div>
     </div>
   );
@@ -478,7 +477,7 @@ export function ModTopMaManh() {
       const industry = branchPath.tickerToBranch[ticker];
       if (!industry) return [];
       return [{ ticker, name: tickerNameByKey.get(ticker) || ticker, industry }];
-    });
+    }).sort((a, b) => a.ticker.localeCompare(b.ticker));
   }, [activeCashBucket?.rows, branchPath.tickerToBranch, cashTicker.allowedTickers, smdtTicker.tickers, tickerNameByKey]);
 
   const branchSmdtLookup = useMemo(
@@ -524,7 +523,7 @@ export function ModTopMaManh() {
         score,
       });
     }
-    return data.sort((a, b) => b.score - a.score || b.smdt - a.smdt || a.ticker.localeCompare(b.ticker));
+    return data.sort((a, b) => a.ticker.localeCompare(b.ticker));
   }, [activeSmdtDate, branchSigLookup, branchSmdtLookup, cashByTicker, dateInputValue, prev2SmdtDate, prevSmdtDate, smdtTicker.matrix, tickerPool, totalTrade.matrix]);
 
   const industries = useMemo(
@@ -618,10 +617,9 @@ export function ModTopMaManh() {
 
   const exportCsv = useCallback(() => {
     const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
-    const lines = [["Rank", "Mã", "Ngành", "Giá", "SMDT ngành", "SMDT mã", "TH ngành", "TH cổ phiếu", "Trạng thái", "Điểm"].map(esc).join(",")];
-    filteredRows.forEach((row, index) => {
+    const lines = [["Mã", "Ngành", "Giá", "SMDT ngành", "SMDT mã", "Dòng tiền ngành", "Dòng tiền cổ phiếu", "Trạng thái", "Điểm"].map(esc).join(",")];
+    filteredRows.forEach((row) => {
       lines.push([
-        index + 1,
         row.ticker,
         row.industry,
         row.price || "",
@@ -707,8 +705,8 @@ export function ModTopMaManh() {
             <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 9 }}>
               <span style={{ color: "var(--t4)", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".06em" }}>Đang lọc</span>
               {hiddenInd.size > 0 && <ActivePill>{industries.length - hiddenInd.size}/{industries.length} ngành</ActivePill>}
-              {branchSigs.size < SIGS.length && <ActivePill>TH ngành: {[...branchSigs].map((s) => SIG_LABEL[s]).join(", ")}</ActivePill>}
-              {tickerSigs.size < SIGS.length && <ActivePill>TH mã: {[...tickerSigs].map((s) => SIG_LABEL[s]).join(", ")}</ActivePill>}
+              {branchSigs.size < SIGS.length && <ActivePill>Dòng tiền ngành: {[...branchSigs].map((s) => SIG_LABEL[s]).join(", ")}</ActivePill>}
+              {tickerSigs.size < SIGS.length && <ActivePill>Dòng tiền cổ phiếu: {[...tickerSigs].map((s) => SIG_LABEL[s]).join(", ")}</ActivePill>}
               {status !== "all" && <ActivePill>{STATUS_META[status].label}</ActivePill>}
               {query && <ActivePill>{query}</ActivePill>}
               <button type="button" onClick={resetAll} style={{ border: "none", background: "transparent", color: "var(--R)", fontSize: 11, fontWeight: 800, cursor: "pointer" }}>Xóa tất cả</button>
@@ -718,8 +716,8 @@ export function ModTopMaManh() {
           <Card noPad>
             {narrow ? (
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 9, padding: 12 }}>
-                {pageRows.map((row, index) => (
-                  <TopCard key={row.ticker} row={row} rank={(safePage - 1) * pageSize + index + 1} />
+                {pageRows.map((row) => (
+                  <TopCard key={row.ticker} row={row} />
                 ))}
                 {pageRows.length === 0 && (
                   <div style={{ padding: 28, textAlign: "center", color: "var(--t3)", fontSize: 13 }}>Không có mã nào thỏa điều kiện.</div>
@@ -727,22 +725,20 @@ export function ModTopMaManh() {
               </div>
             ) : (
             <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, minWidth: 910 }}>
+              <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, minWidth: 980 }}>
                 <thead>
                   <tr>
-                    {["#", "Mã", "Ngành", "Giá", "SMDT ngành", "SMDT mã", "TH ngành", "TH cổ phiếu", "Trạng thái"].map((h, i) => (
-                      <th key={h} style={{ padding: "9px 11px", background: "var(--elev)", borderBottom: "0.5px solid var(--bdr)", color: "var(--t4)", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".06em", textAlign: i >= 3 ? "right" : "left", whiteSpace: "nowrap" }}>
+                    {["Mã", "Ngành", "Giá", "SMDT ngành", "SMDT mã", "Dòng tiền ngành", "Dòng tiền cổ phiếu", "Trạng thái"].map((h, i) => (
+                      <th key={h} style={{ padding: "9px 11px", background: "var(--elev)", borderBottom: "0.5px solid var(--bdr)", color: "var(--t4)", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".06em", textAlign: i >= 2 ? "right" : "left", whiteSpace: "nowrap" }}>
                         {h}
                       </th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {pageRows.map((row, index) => {
-                    const rank = (safePage - 1) * pageSize + index + 1;
+                  {pageRows.map((row) => {
                     return (
                       <tr key={row.ticker}>
-                        <td style={tdStyle({ color: "var(--t4)", fontWeight: 800, paddingLeft: 13 })}>{rank}</td>
                         <td style={tdStyle()}>
                           <div title={row.name} style={{ display: "flex", flexDirection: "column", gap: 1, maxWidth: 74, minWidth: 0 }}>
                             <span style={{ color: "var(--B)", fontSize: 12, fontWeight: 900, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.ticker}</span>
@@ -766,7 +762,7 @@ export function ModTopMaManh() {
                     );
                   })}
                   {pageRows.length === 0 && (
-                    <tr><td colSpan={10} style={{ padding: 36, textAlign: "center", color: "var(--t3)" }}>Không có mã nào thỏa điều kiện.</td></tr>
+                    <tr><td colSpan={8} style={{ padding: 36, textAlign: "center", color: "var(--t3)" }}>Không có mã nào thỏa điều kiện.</td></tr>
                   )}
                 </tbody>
               </table>

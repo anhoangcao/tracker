@@ -265,6 +265,16 @@ export function ModDongTienCP() {
     setSelectedDate("");
     setPage(nextPage);
   }, []);
+  const changeSessions = useCallback((nextSessions) => {
+    setSessions(nextSessions);
+    if (!selectedDate) {
+      setPage(1);
+      return;
+    }
+    const displayIndex = orderedDates.findIndex((bucket) => toDateInputValue(bucket.date) === selectedDate);
+    const startIndex = dateSort === "desc" ? displayIndex : Math.max(0, displayIndex - nextSessions + 1);
+    setPage(Math.floor(Math.max(0, startIndex) / nextSessions) + 1);
+  }, [dateSort, orderedDates, selectedDate]);
   const toggleDateSort = useCallback(() => {
     const next = dateSort === "desc" ? "asc" : "desc";
     const nextOrderedDates = next === "desc" ? datesDesc : [...datesDesc].reverse();
@@ -370,7 +380,7 @@ export function ModDongTienCP() {
         <SMDTToolbarPill as="label" style={narrow ? { width: "100%", minWidth: 0, cursor: "pointer", padding: "0 8px", flexShrink: 1, justifyContent: "center", gap: 4 } : { cursor: "pointer", padding: "0 10px", flexShrink: 0 }}>
           <select
             value={sessions}
-            onChange={(e) => { setSessions(Number(e.target.value)); setPage(1); setSelectedDate(""); }}
+            onChange={(e) => changeSessions(Number(e.target.value))}
             style={{ minWidth: 0, border: "none", outline: "none", background: "transparent", color: "var(--t2)", font: "inherit", fontWeight: 700, cursor: "pointer", appearance: "none", padding: 0 }}
           >
             {[12, 25, 50].map((n) => (
