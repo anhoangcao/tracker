@@ -725,11 +725,11 @@ export function ModTopMaManh() {
               </div>
             ) : (
             <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, minWidth: 980 }}>
+              <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, minWidth: 820 }}>
                 <thead>
                   <tr>
                     {["Mã", "Ngành", "Giá", "SMDT ngành", "SMDT mã", "Dòng tiền ngành", "Dòng tiền cổ phiếu", "Trạng thái"].map((h, i) => (
-                      <th key={h} style={{ padding: "9px 11px", background: "var(--elev)", borderBottom: "0.5px solid var(--bdr)", color: "var(--t4)", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".06em", textAlign: i >= 2 ? "right" : "left", whiteSpace: "nowrap" }}>
+                      <th key={h} style={{ padding: "8px 6px", background: "var(--elev)", borderBottom: "0.5px solid var(--bdr)", color: "var(--t4)", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".06em", textAlign: i >= 2 ? "right" : "left", whiteSpace: "nowrap" }}>
                         {h}
                       </th>
                     ))}
@@ -740,13 +740,13 @@ export function ModTopMaManh() {
                     return (
                       <tr key={row.ticker}>
                         <td style={tdStyle()}>
-                          <div title={row.name} style={{ display: "flex", flexDirection: "column", gap: 1, maxWidth: 74, minWidth: 0 }}>
+                          <div title={row.name} style={{ display: "flex", flexDirection: "column", gap: 1, maxWidth: 60, minWidth: 0 }}>
                             <span style={{ color: "var(--B)", fontSize: 12, fontWeight: 900, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.ticker}</span>
-                            {row.name !== row.ticker && <span style={{ color: "var(--t4)", fontSize: 9, maxWidth: 74, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.name}</span>}
+                            {row.name !== row.ticker && <span style={{ color: "var(--t4)", fontSize: 9, maxWidth: 60, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.name}</span>}
                           </div>
                         </td>
                         <td style={tdStyle({ color: "var(--t2)" })}>
-                          <span title={row.industry} style={{ display: "inline-flex", alignItems: "center", gap: 6, maxWidth: 112 }}>
+                          <span title={row.industry} style={{ display: "inline-flex", alignItems: "center", gap: 6, maxWidth: 94 }}>
                             <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.industry}</span>
                           </span>
                         </td>
@@ -805,7 +805,7 @@ function ActivePill({ children }) {
 
 function tdStyle(extra = {}) {
   return {
-    padding: "9px 11px",
+    padding: "8px 6px",
     borderBottom: "0.5px solid var(--bdrs)",
     whiteSpace: "nowrap",
     verticalAlign: "middle",
