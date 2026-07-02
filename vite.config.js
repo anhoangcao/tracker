@@ -269,6 +269,12 @@ function getSMDTTickerReply(data) {
   return null;
 }
 
+function parseOptionalLimit(value) {
+  if (value == null || value === "" || value === "all" || value === "full") return null;
+  const limit = parseInt(value, 10);
+  return Number.isFinite(limit) && limit > 0 ? limit : 150;
+}
+
 function smdtDevPlugin() {
   return {
     name: "smdt-dev-plugin",
@@ -279,11 +285,7 @@ function smdtDevPlugin() {
         if (reqUrl.startsWith("/api/smdt-ticker")) {
           const host = req.headers.host || "localhost:3000";
           const parsedUrl = new URL(reqUrl, `http://${host}`);
-          const limitParam = parsedUrl.searchParams.get("limit");
-          let limit = parseInt(limitParam || "150", 10);
-          if (isNaN(limit) || limit <= 0) {
-            limit = 150;
-          }
+          const limit = parseOptionalLimit(parsedUrl.searchParams.get("limit"));
 
           const now = Date.now();
           if (!smdtTickerDevCache || (now - smdtTickerDevLastFetched > CACHE_DURATION)) {
@@ -320,7 +322,7 @@ function smdtDevPlugin() {
                 codeReply: reply.codeReply || { codeID: "S0000", codeName: "SUCSESS" },
                 SMDTDatas: datas.map((item) => ({
                   ...item,
-                  smdts: Array.isArray(item.smdts) ? item.smdts.slice(-limit) : []
+                  smdts: Array.isArray(item.smdts) ? (limit ? item.smdts.slice(-limit) : item.smdts) : []
                 }))
               }
             };
@@ -337,11 +339,7 @@ function smdtDevPlugin() {
         } else if (reqUrl.startsWith("/api/smdt")) {
           const host = req.headers.host || "localhost:3000";
           const parsedUrl = new URL(reqUrl, `http://${host}`);
-          const limitParam = parsedUrl.searchParams.get("limit");
-          let limit = parseInt(limitParam || "150", 10);
-          if (isNaN(limit) || limit <= 0) {
-            limit = 150;
-          }
+          const limit = parseOptionalLimit(parsedUrl.searchParams.get("limit"));
 
           const now = Date.now();
           if (!devCache || (now - devLastFetched > CACHE_DURATION)) {
@@ -370,7 +368,7 @@ function smdtDevPlugin() {
             const originalDatas = devCache?.SMDTBranchReply?.SMDTDatas || [];
             const slicedDatas = originalDatas.map(branch => {
               const originalSmdts = branch.smdts || [];
-              const slicedSmdts = originalSmdts.slice(-limit);
+              const slicedSmdts = limit ? originalSmdts.slice(-limit) : originalSmdts;
               return { ...branch, smdts: slicedSmdts };
             });
 
@@ -393,11 +391,7 @@ function smdtDevPlugin() {
         } else if (reqUrl.startsWith("/api/stock-wave")) {
           const host = req.headers.host || "localhost:3000";
           const parsedUrl = new URL(reqUrl, `http://${host}`);
-          const limitParam = parsedUrl.searchParams.get("limit");
-          let limit = parseInt(limitParam || "150", 10);
-          if (isNaN(limit) || limit <= 0) {
-            limit = 150;
-          }
+          const limit = parseOptionalLimit(parsedUrl.searchParams.get("limit"));
 
           const now = Date.now();
           if (!stockWaveDevCache || (now - stockWaveDevLastFetched > CACHE_DURATION)) {
@@ -425,7 +419,7 @@ function smdtDevPlugin() {
                 codeReply: stockWaveReply.codeReply || { codeID: "S0000", codeName: "SUCSESS" },
                 stockWaves: {
                   ...stockWaves,
-                  waveDatas: waveDatas.slice(-limit)
+                  waveDatas: limit ? waveDatas.slice(-limit) : waveDatas
                 }
               }
             };
@@ -442,11 +436,7 @@ function smdtDevPlugin() {
         } else if (reqUrl.startsWith("/api/cashflow-branch")) {
           const host = req.headers.host || "localhost:3000";
           const parsedUrl = new URL(reqUrl, `http://${host}`);
-          const limitParam = parsedUrl.searchParams.get("limit");
-          let limit = parseInt(limitParam || "150", 10);
-          if (isNaN(limit) || limit <= 0) {
-            limit = 150;
-          }
+          const limit = parseOptionalLimit(parsedUrl.searchParams.get("limit"));
 
           const now = Date.now();
           if (!cashFlowDevCache || (now - cashFlowDevLastFetched > CACHE_DURATION)) {
@@ -474,8 +464,7 @@ function smdtDevPlugin() {
           try {
             const reply = cashFlowDevCache?.CashFlowBranchReply || {};
             const originalBuckets = Array.isArray(reply.cashFlowBranchs) ? reply.cashFlowBranchs : [];
-            // Mỗi bucket là 1 phiên (ngày); slice giữ `limit` phiên gần nhất.
-            const slicedBuckets = originalBuckets.slice(-limit);
+            const slicedBuckets = limit ? originalBuckets.slice(-limit) : originalBuckets;
 
             const out = {
               CashFlowBranchReply: {
@@ -550,12 +539,8 @@ function smdtDevPlugin() {
         } else if (reqUrl.startsWith("/api/cashflow-ticker")) {
           const host = req.headers.host || "localhost:3000";
           const parsedUrl = new URL(reqUrl, `http://${host}`);
-          const limitParam = parsedUrl.searchParams.get("limit");
           const wantsFresh = parsedUrl.searchParams.get("fresh") === "1" || parsedUrl.searchParams.get("fresh") === "true";
-          let limit = parseInt(limitParam || "150", 10);
-          if (isNaN(limit) || limit <= 0) {
-            limit = 150;
-          }
+          const limit = parseOptionalLimit(parsedUrl.searchParams.get("limit"));
 
           const now = Date.now();
           // Khi thiếu snapshot hoặc danh sách mã, nạp song song để first paint nhanh nhất.
@@ -590,7 +575,7 @@ function smdtDevPlugin() {
               [replyKey]: {
                 codeReply: reply.codeReply || { codeID: "S0000", codeName: "SUCSESS" },
                 allowedTickers,
-                cashFlowTickers: allowedTickerSet.size > 0 ? buckets.slice(-limit).map((bucket) => filterCashFlowTickerBucket(bucket, allowedTickerSet)) : buckets.slice(-limit)
+                cashFlowTickers: (limit ? buckets.slice(-limit) : buckets).map((bucket) => allowedTickerSet.size > 0 ? filterCashFlowTickerBucket(bucket, allowedTickerSet) : bucket)
               }
             };
 
@@ -606,11 +591,7 @@ function smdtDevPlugin() {
         } else if (reqUrl.startsWith("/api/smdt-ticker")) {
           const host = req.headers.host || "localhost:3000";
           const parsedUrl = new URL(reqUrl, `http://${host}`);
-          const limitParam = parsedUrl.searchParams.get("limit");
-          let limit = parseInt(limitParam || "150", 10);
-          if (isNaN(limit) || limit <= 0) {
-            limit = 150;
-          }
+          const limit = parseOptionalLimit(parsedUrl.searchParams.get("limit"));
 
           const now = Date.now();
           if (!smdtTickerDevCache || (now - smdtTickerDevLastFetched > CACHE_DURATION)) {
@@ -648,7 +629,7 @@ function smdtDevPlugin() {
                 // Mỗi cổ phiếu có chuỗi smdts theo ngày; slice giữ `limit` phiên gần nhất.
                 SMDTDatas: datas.map((d) => ({
                   ...d,
-                  smdts: Array.isArray(d.smdts) ? d.smdts.slice(-limit) : []
+                  smdts: Array.isArray(d.smdts) ? (limit ? d.smdts.slice(-limit) : d.smdts) : []
                 }))
               }
             };
@@ -665,11 +646,7 @@ function smdtDevPlugin() {
         } else if (reqUrl.startsWith("/api/smdt-ticker")) {
           const host = req.headers.host || "localhost:3000";
           const parsedUrl = new URL(reqUrl, `http://${host}`);
-          const limitParam = parsedUrl.searchParams.get("limit");
-          let limit = parseInt(limitParam || "150", 10);
-          if (isNaN(limit) || limit <= 0) {
-            limit = 150;
-          }
+          const limit = parseOptionalLimit(parsedUrl.searchParams.get("limit"));
 
           const now = Date.now();
           if (!smdtTickerDevCache || (now - smdtTickerDevLastFetched > CACHE_DURATION)) {
@@ -706,7 +683,7 @@ function smdtDevPlugin() {
                 codeReply: reply.codeReply || { codeID: "S0000", codeName: "SUCSESS" },
                 SMDTDatas: datas.map((item) => ({
                   ...item,
-                  smdts: Array.isArray(item.smdts) ? item.smdts.slice(-limit) : []
+                  smdts: Array.isArray(item.smdts) ? (limit ? item.smdts.slice(-limit) : item.smdts) : []
                 }))
               }
             };

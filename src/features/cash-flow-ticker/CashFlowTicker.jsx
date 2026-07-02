@@ -9,7 +9,7 @@ import { DateSessionSelect, SMDTToolbarPill, SMDTSearchPill, InlineFilterChips, 
 import { CashFlowMatrixTable } from "./CashFlowMatrixTable";
 import { CfBadge } from "./CfBadge";
 import { IndustryPicker } from "./IndustryPicker";
-import { CF_SIG, CF_SIG_ORDER } from "./cashFlowUtils";
+import { CF_SIG, CF_SIG_ORDER, cfSigStyle } from "./cashFlowUtils";
 
 const HIDDEN_INDUSTRIES_KEY = "cashflow_ticker_hidden_industries_v1";
 const COLLAPSED_INDUSTRIES_KEY = "cashflow_ticker_collapsed_industries_v1";
@@ -393,10 +393,10 @@ export function ModDongTienCP() {
         <InlineFilterChips
           options={[
             { id: "all", label: "Tất cả" },
-            { id: "sn", label: "Nhen nhóm" },
-            { id: "si", label: "Đổ vào" },
-            { id: "so", label: "Đang thoát" },
-            { id: "st", label: "Thoát ra" },
+            { id: "sn", label: "Nhen nhóm", tone: (t) => cfSigStyle("sn", t) },
+            { id: "si", label: "Đổ vào", tone: (t) => cfSigStyle("si", t) },
+            { id: "so", label: "Đang thoát", tone: (t) => cfSigStyle("so", t) },
+            { id: "st", label: "Thoát ra", tone: (t) => cfSigStyle("st", t) },
           ]}
           active={filter}
           onChange={setFilter}

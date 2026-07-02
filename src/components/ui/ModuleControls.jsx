@@ -204,10 +204,12 @@ export function SMDTSearchPill({ value, onChange, placeholder, style }) {
 }
 
 export function InlineFilterChips({ options, active, onChange, style, buttonStyle }) {
+  const { t } = useTheme();
   return (
     <div style={{ display: "inline-flex", alignItems: "center", gap: 7, flexWrap: "wrap", ...style }}>
       {options.map((option) => {
         const on = active === option.id;
+        const tone = typeof option.tone === "function" ? option.tone(t) : option.tone;
         return (
           <button
             key={option.id}
@@ -217,15 +219,16 @@ export function InlineFilterChips({ options, active, onChange, style, buttonStyl
               display: "inline-flex",
               alignItems: "center",
               justifyContent: "center",
-              background: on ? "var(--Bs)" : "var(--surf)",
-              border: `0.5px solid ${on ? "var(--Bb)" : "var(--bdr)"}`,
+              background: tone ? tone.bg : on ? "var(--Bs)" : "var(--surf)",
+              border: `0.5px solid ${tone ? tone.border : on ? "var(--Bb)" : "var(--bdr)"}`,
               borderRadius: 20,
               padding: "0 13px",
               fontSize: 12,
-              fontWeight: on ? 700 : 500,
-              color: on ? "var(--B)" : "var(--t2)",
+              fontWeight: on ? 800 : tone ? 700 : 500,
+              color: tone ? tone.color : on ? "var(--B)" : "var(--t2)",
               cursor: "pointer",
               whiteSpace: "nowrap",
+              boxShadow: on && tone ? `inset 0 0 0 0.5px ${tone.border}` : "none",
               ...buttonStyle,
             }}
           >

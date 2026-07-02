@@ -13,6 +13,7 @@ import { Card, CardHeader, Pagination, Banner, LiveFooter } from "../../componen
 import { DateSessionSelect, SMDTSearchPill, SMDTToolbarPill, linkBtn } from "../../components/ui/ModuleControls";
 import { IndustryPicker } from "../cash-flow-ticker/IndustryPicker";
 import { CfBadge } from "../cash-flow-ticker/CfBadge";
+import { cfSigStyle } from "../cash-flow-ticker/cashFlowUtils";
 
 const SIGS = ["si", "sn", "so", "st"];
 const SIG_LABEL = {
@@ -192,6 +193,7 @@ function FilterButton({ active, icon, label, children }) {
 }
 
 function SignalDropdown({ branchSigs, tickerSigs, onBranchChange, onTickerChange }) {
+  const { t } = useTheme();
   const active = branchSigs.size < SIGS.length || tickerSigs.size < SIGS.length;
   const total = branchSigs.size + tickerSigs.size;
   const toggle = (set, sig, onChange) => {
@@ -208,12 +210,13 @@ function SignalDropdown({ branchSigs, tickerSigs, onBranchChange, onTickerChange
       <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 11 }}>
         {SIGS.map((sig) => {
           const on = set.has(sig);
+          const tone = cfSigStyle(sig, t);
           return (
             <button
               key={sig}
               type="button"
               onClick={() => toggle(set, sig, onChange)}
-              style={{ border: `0.5px solid ${on ? "var(--Bb)" : "var(--bdr)"}`, background: on ? "var(--Bs)" : "var(--elev)", color: on ? "var(--B)" : "var(--t3)", opacity: on ? 1 : 0.48, borderRadius: 20, padding: "4px 10px", fontSize: 11, fontWeight: 800, cursor: "pointer", fontFamily: "inherit" }}
+              style={{ border: `0.5px solid ${tone.border}`, background: tone.bg, color: tone.color, opacity: on ? 1 : 0.42, borderRadius: 20, padding: "4px 10px", fontSize: 11, fontWeight: 800, cursor: "pointer", fontFamily: "inherit" }}
             >
               {SIG_LABEL[sig]}
             </button>
