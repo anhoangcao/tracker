@@ -1352,9 +1352,12 @@ export function ModLoTrinhDanSong() {
 
       <div style={styles.controls}>
         <button type="button" onClick={() => setYear(0)} style={{ ...styles.chip, ...(year === 0 ? styles.activeChip : null) }}>Tất cả</button>
-        <select value={year || latestYear || ""} onChange={(e) => setYear(Number(e.target.value))} style={styles.select}>
-          {years.map((item) => <option key={item} value={item}>{item}</option>)}
-        </select>
+        <div style={styles.selectWrap}>
+          <select value={year || latestYear || ""} onChange={(e) => setYear(Number(e.target.value))} style={styles.select}>
+            {years.map((item) => <option key={item} value={item}>{item}</option>)}
+          </select>
+          <i className="ti ti-chevron-down" style={styles.selectIcon} />
+        </div>
         <div style={styles.searchBox}>
           <i className="ti ti-search" style={{ color: "var(--t4)", fontSize: 14 }} />
           <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Tìm ngành..." style={styles.searchInput} />
@@ -1427,7 +1430,26 @@ const styles = {
   controls: { display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" },
   chip: { height: 31, padding: "0 14px", borderRadius: 18, border: "0.5px solid var(--bdr)", background: "var(--elev)", color: "var(--t2)", fontSize: 12, fontWeight: 700, cursor: "pointer" },
   activeChip: { background: "var(--Bs)", borderColor: "var(--Bb)", color: "var(--B)" },
-  select: { height: 31, borderRadius: 18, border: "0.5px solid var(--bdr)", background: "var(--elev)", color: "var(--t2)", padding: "0 12px", outline: "none", fontSize: 12, fontWeight: 700 },
+  selectWrap: { position: "relative", height: 31, minWidth: 86, flexShrink: 0 },
+  select: {
+    width: "100%",
+    height: "100%",
+    appearance: "none",
+    WebkitAppearance: "none",
+    MozAppearance: "none",
+    borderRadius: 8,
+    border: "0.5px solid var(--bdr)",
+    background: "var(--surf)",
+    boxShadow: "none",
+    WebkitBoxShadow: "none",
+    color: "var(--t2)",
+    padding: "0 28px 0 12px",
+    outline: "none",
+    fontSize: 12,
+    fontWeight: 700,
+    cursor: "pointer",
+  },
+  selectIcon: { position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", color: "var(--t4)", fontSize: 13, pointerEvents: "none" },
   searchBox: { height: 31, minWidth: 190, maxWidth: 260, flex: "1 1 190px", display: "flex", alignItems: "center", gap: 7, padding: "0 10px", background: "var(--surf)", border: "0.5px solid var(--bdr)", borderRadius: 8 },
   searchInput: { width: "100%", minWidth: 0, background: "transparent", border: "none", outline: "none", color: "var(--t2)", fontSize: 12 },
   clearBtn: { width: 20, height: 20, border: "none", background: "transparent", color: "var(--t4)", cursor: "pointer" },
