@@ -325,10 +325,10 @@ function OverviewPanel({ foundRows, dn, sn, ns, ss, score, scoreName, mobile }) 
         <ScoreDonut dn={dn} sn={sn} ns={ns} ss={ss} total={foundRows.length} mobile={mobile} />
         <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: mobile ? 7 : 8 }}>
           {[
-            { color: "var(--G)", label: "Đúng sóng, đúng ngành", count: dn },
-            { color: "var(--A)", label: "Đúng sóng, sai ngành", count: sn },
-            { color: "var(--B)", label: "Đúng ngành, sai sóng", count: ns },
-            { color: "var(--R)", label: "Sai sóng, sai ngành", count: ss },
+            { color: "var(--G)", label: FOUR_KEY_META.DS_DN.label, count: dn },
+            { color: "var(--A)", label: FOUR_KEY_META.DS_SN.label, count: sn },
+            { color: "var(--B)", label: FOUR_KEY_META.DN_SS.label, count: ns },
+            { color: "var(--R)", label: FOUR_KEY_META.SS.label, count: ss },
           ].map((item) => (
             <div key={item.label} style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
               <span style={{ width: 7, height: 7, borderRadius: "50%", background: item.color, flexShrink: 0 }} />

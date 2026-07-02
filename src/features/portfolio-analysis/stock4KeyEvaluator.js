@@ -3,25 +3,25 @@ export const FOUR_KEY_LOOKBACK_SESSIONS = 3;
 export const FOUR_KEY_META = {
   DS_DN: {
     group: "Đúng sóng - Đúng ngành",
-    label: "Đúng sóng, đúng ngành",
+    label: "Đúng sóng - Đúng ngành",
     recommendation: "MUA - tín hiệu thuận cả 2 chiều",
     score: 85,
   },
   DS_SN: {
     group: "Đúng sóng - Sai ngành",
-    label: "Đúng sóng, sai ngành",
+    label: "Đúng sóng - Sai ngành",
     recommendation: "CÂN NHẮC - mã mạnh riêng lẻ, ngược dòng ngành",
     score: 55,
   },
   DN_SS: {
     group: "Đúng ngành - Sai sóng",
-    label: "Đúng ngành, sai sóng",
+    label: "Đúng ngành - Sai sóng",
     recommendation: "THEO DÕI - ngành thuận nhưng mã chưa xác nhận",
     score: 38,
   },
   SS: {
     group: "Sai sóng - Sai ngành",
-    label: "Sai sóng, sai ngành",
+    label: "Sai sóng - Sai ngành",
     recommendation: "TRÁNH - cả 2 chiều bất lợi",
     score: 15,
   },
