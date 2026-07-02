@@ -540,22 +540,23 @@ function EventDot({ row, event, color, d0, totalMs, onOpen }) {
 
 function TimelineRow({ row, active, d0, totalMs, labelWidth, onOpen, onSelect }) {
   const pinned = row.pinned;
+  const rowHeight = labelWidth < 180 ? 56 : 46;
   return (
     <div
       onClick={() => onSelect(row.key)}
       style={{
         display: "flex",
-        minHeight: 40,
+        minHeight: rowHeight,
         cursor: "pointer",
         background: active ? "var(--Bs)" : "transparent",
         borderBottom: "0.5px solid var(--bdr)",
       }}
     >
-      <div style={{ ...styles.timelineLabel, width: labelWidth, color: pinned ? row.color : "var(--t2)", fontWeight: pinned ? 800 : 600 }}>
-        {pinned && <i className="ti ti-star-filled" style={{ fontSize: 10, marginRight: 4, color: "var(--A)" }} />}
-        {row.label}
+      <div style={{ ...styles.timelineLabel, width: labelWidth, minHeight: rowHeight, color: pinned ? row.color : "var(--t2)", fontWeight: pinned ? 800 : 600 }}>
+        {pinned && <i className="ti ti-star-filled" style={{ fontSize: 10, color: "var(--A)", flexShrink: 0 }} />}
+        <span title={row.key} style={styles.timelineLabelText}>{row.label}</span>
       </div>
-      <div style={styles.timelineTrack}>
+      <div style={{ ...styles.timelineTrack, height: rowHeight }}>
         <div style={styles.timelineLine} />
         {row.events.map((event) => (
           <EventDot key={`${row.key}-${event.date}`} row={row} event={event} color={row.color} d0={d0} totalMs={totalMs} onOpen={onOpen} />
@@ -1329,7 +1330,7 @@ export function ModLoTrinhDanSong() {
   }, [bounds.maxDate, filteredRows]);
 
   const selectedRow = filteredRows.find((row) => row.key === selectedKey) || null;
-  const labelWidth = narrow ? 122 : 174;
+  const labelWidth = narrow ? 168 : 210;
   const loading = smdt.status === "loading" && !allRows.length;
   const error = smdt.status === "error" && !allRows.length;
 
@@ -1456,7 +1457,8 @@ const styles = {
   manageBtn: { height: 31, marginLeft: "auto", display: "flex", alignItems: "center", gap: 6, padding: "0 13px", borderRadius: 18, border: "0.5px solid var(--bdr)", background: "var(--elev)", color: "var(--t2)", fontSize: 12, fontWeight: 700, cursor: "pointer" },
   timelinePanel: { background: "var(--surf)", border: "0.5px solid var(--bdr)", borderRadius: 12, padding: "8px 12px 10px" },
   monthLabel: { fontSize: 9, color: "var(--t4)", fontWeight: 800, textTransform: "uppercase", letterSpacing: ".06em", whiteSpace: "nowrap" },
-  timelineLabel: { flexShrink: 0, padding: "0 12px 0 0", display: "flex", alignItems: "center", justifyContent: "flex-end", textAlign: "right", fontSize: 11, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" },
+  timelineLabel: { flexShrink: 0, padding: "0 12px 0 0", display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4, textAlign: "right", fontSize: 11 },
+  timelineLabelText: { minWidth: 0, lineHeight: 1.22, whiteSpace: "normal", overflowWrap: "break-word" },
   timelineTrack: { minWidth: 480, flex: 1, position: "relative", height: 40 },
   timelineLine: { position: "absolute", top: "50%", left: 0, right: 0, height: 1, background: "var(--bdr)", transform: "translateY(-50%)" },
   tooltip: { position: "absolute", left: "50%", bottom: 24, transform: "translateX(-50%)", display: "flex", flexDirection: "column", gap: 2, padding: "6px 9px", borderRadius: 7, background: "var(--surf)", border: "0.5px solid var(--bdr)", color: "var(--t2)", fontSize: 10, whiteSpace: "nowrap", boxShadow: "0 8px 24px rgba(0,0,0,.25)" },
