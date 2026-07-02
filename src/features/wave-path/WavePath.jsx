@@ -481,7 +481,8 @@ function EventDot({ row, event, color, d0, totalMs, onOpen }) {
   const [hover, setHover] = useState(false);
   const left = pctPos(event.date, d0, totalMs);
   const big = event.smdt >= SUPER_THRESHOLD;
-  const size = big ? 13 : 10;
+  const markerSize = big ? 20 : 15;
+  const markerColor = big ? "var(--MU)" : color;
 
   return (
     <button
@@ -497,8 +498,8 @@ function EventDot({ row, event, color, d0, totalMs, onOpen }) {
         top: "50%",
         left: `${left}%`,
         transform: "translate(-50%,-50%)",
-        width: 22,
-        height: 22,
+        width: 28,
+        height: 28,
         border: "none",
         background: "transparent",
         cursor: "pointer",
@@ -509,7 +510,24 @@ function EventDot({ row, event, color, d0, totalMs, onOpen }) {
       }}
       title={`${row.label} · ${fmtDate(event.date)} · ${event.smdt.toFixed(1)}%`}
     >
-      <span style={{ width: size, height: size, borderRadius: "50%", background: big ? "var(--MU)" : color, border: "1.5px solid var(--bg)", boxShadow: hover ? `0 0 0 5px ${color}25` : "none", display: "block" }} />
+      <span
+        style={{
+          width: markerSize,
+          height: markerSize,
+          borderRadius: "50%",
+          background: markerColor,
+          border: "1.5px solid var(--bg)",
+          boxShadow: hover ? `0 0 0 5px ${markerColor}25` : "none",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          color: "#fff",
+          fontSize: big ? 10 : 8,
+          lineHeight: 1,
+        }}
+      >
+        {big && <i className="ti ti-star-filled" style={{ fontSize: 10 }} />}
+      </span>
       {hover && (
         <span style={styles.tooltip}>
           <span>{fmtDate(event.date)}</span>
