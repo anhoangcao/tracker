@@ -189,8 +189,8 @@ function getStockSignalForDate(stockSig, dateValue) {
   if (!points.length) return stockSig;
   const eligible = points.filter((point) => !dateValue || toDateInputValue(point.date) <= dateValue);
   const latestHoldPoint = eligible[eligible.length - 1] || points[points.length - 1] || stockSig;
-  const tradePoint = dateValue ? eligible.findLast((point) => toDateInputValue(point.date) === dateValue && (point.trade === 1 || point.trade === 2)) : latestHoldPoint;
-  const trade = tradePoint?.trade;
+  const tradePoint = dateValue ? eligible.findLast((point) => toDateInputValue(point.date) === dateValue && (Number(point.trade) === 1 || Number(point.trade) === 2)) : latestHoldPoint;
+  const trade = Number.isFinite(Number(tradePoint?.trade)) ? Number(tradePoint.trade) : null;
   const signal = trade === 1 ? "MUA" : trade === 2 ? "BAN" : "Nắm giữ";
   const hold = Number.isFinite(latestHoldPoint?.hold) ? latestHoldPoint.hold : Number.isFinite(latestHoldPoint?.weight) ? latestHoldPoint.weight : null;
   const percent = Number.isFinite(tradePoint?.percent) ? tradePoint.percent : null;
@@ -548,7 +548,7 @@ export function ModPhanTichDanhMuc() {
       const tradePoint = findTradePoint(totalTrade.matrix[ticker], activeDateValue);
       const stockSig = getStockSignalForDate(stockSignal.signalByTicker[ticker], activeDateValue);
       const apiSignal = stockSig?.signal || null;
-      const apiWeight = Number.isFinite(stockSig?.hold) ? stockSig.hold : Number.isFinite(stockSig?.weight) ? stockSig.weight : null;
+      const apiWeight = Number.isFinite(stockSig?.weight) ? stockSig.weight : Number.isFinite(stockSig?.hold) ? stockSig.hold : null;
       const row = {
         ticker,
         found: true,
