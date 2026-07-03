@@ -14,7 +14,7 @@ import { useStockWave, useRealtimeStockWaveFeed } from "../../data/useStockWave"
 import { useTotalTrade } from "../../data/useTotalTrade";
 import { Card, Clink, LiveFooter, Pagination } from "../../components/ui";
 
-const SIG_ORDER = ["si", "sn", "so", "st"];
+const SIG_ORDER = ["sn", "si", "so", "st"];
 const CORE_KEYS = new Set(CORE_BRANCHES.map((b) => b.key));
 const CORE_LABELS = new Set(CORE_BRANCHES.flatMap((b) => [b.key, b.label]));
 const TOP_LIMIT = 40;
@@ -379,8 +379,8 @@ function TopStrongTable({ rows, date, narrow }) {
         </div>
         <div style={{ display: "flex", gap: 4 }}>
           <ChipButton active={filter === "all"} onClick={() => setNextFilter("all")}>Tất cả</ChipButton>
-          <ChipButton active={filter === "si"} tone="G" onClick={() => setNextFilter("si")}>Đổ vào</ChipButton>
           <ChipButton active={filter === "sn"} tone="G" onClick={() => setNextFilter("sn")}>Nhen nhóm</ChipButton>
+          <ChipButton active={filter === "si"} tone="G" onClick={() => setNextFilter("si")}>Đổ vào</ChipButton>
         </div>
       </div>
       <div style={{ overflowX: "auto" }}>
@@ -992,8 +992,8 @@ export function ModDashboard() {
             rightItems={SIG_ORDER.map((sig) => ({ value: branchCashCounts.other[sig], color: DONUT_COLORS[sig] }))}
           />
           <DotLegend square items={[
-            { label: "Đổ vào", color: DONUT_COLORS.si },
             { label: "Nhen nhóm", color: DONUT_COLORS.sn },
+            { label: "Đổ vào", color: DONUT_COLORS.si },
             { label: "Đang thoát", color: DONUT_COLORS.so },
             { label: "Thoát ra", color: DONUT_COLORS.st },
           ]} />
@@ -1008,8 +1008,8 @@ export function ModDashboard() {
             rightItems={SIG_ORDER.map((sig) => ({ value: cashTickerCounts.other[sig], color: DONUT_COLORS[sig] }))}
           />
           <DotLegend square items={[
-            { label: "Đổ vào", color: DONUT_COLORS.si },
             { label: "Nhen nhóm", color: DONUT_COLORS.sn },
+            { label: "Đổ vào", color: DONUT_COLORS.si },
             { label: "Đang thoát", color: DONUT_COLORS.so },
             { label: "Thoát ra", color: DONUT_COLORS.st },
           ]} />
