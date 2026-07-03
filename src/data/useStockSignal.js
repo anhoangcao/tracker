@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 const API_URL = "/api/stock-signal";
-const CACHE_KEY = "stock_signal_data_cache_v2";
+const CACHE_KEY = "stock_signal_data_cache_v3";
 const DEFAULT_REFRESH_MS = 15_000;
 const REPLY_KEYS = ["StockSignalReply", "StockSignalRequest"];
 
@@ -87,6 +87,7 @@ function normalizeSignalPoint(point) {
     weight: pickWeight(point),
     hold: pickWeight({ hold: point.hold }),
     percent: pickWeight({ percent: point.percent }),
+    ave: toNumber(point.ave),
     price: toNumber(point.price),
     smdt: toNumber(point.smdt),
     trade: point.trade,
@@ -108,6 +109,10 @@ function normalize(data) {
         signal: latestPoint?.signal || pickSignal(item),
         weight: latestPoint?.hold ?? latestPoint?.weight ?? pickWeight(item),
         percent: latestPoint?.percent ?? null,
+        hold: latestPoint?.hold ?? null,
+        ave: latestPoint?.ave ?? null,
+        price: latestPoint?.price ?? null,
+        smdt: latestPoint?.smdt ?? null,
         date: latestPoint?.date || "",
         points,
         raw: item,

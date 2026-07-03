@@ -21,6 +21,16 @@ const PINNED_KEYS = [
   "Sóng Vin",
 ];
 
+const INDUSTRY_ALIAS_GROUPS = [
+  ["Ngân hàng", "Ngân hàng thương mại truyền thống"],
+  ["Chứng khoán", "Môi giới chứng khoán"],
+  ["Thép", "Sản xuất, chế biến thép"],
+  ["BĐS Dân cư", "Bất động sản", "Bất động sản dân cư", "Dịch vụ Bất động sản dân cư"],
+  ["BĐS KCN", "Bất động sản công nghiệp", "Bất động sản khu công nghiệp", "Khu công nghiệp"],
+  ["Sóng ngành Vin", "Sóng Vin", "Vin", "Vingroup"],
+  ["Sản xuất và Khai thác dầu khí", "SX & KT dầu khí", "Dầu khí"],
+];
+
 const COLORS = [
   "#7C3AED",
   "#3DD68C",
@@ -71,6 +81,11 @@ function normalizeName(value) {
     .replace(/\s+/g, " ");
 }
 
+function aliasesOfIndustry(name) {
+  const normalized = normalizeName(name);
+  return INDUSTRY_ALIAS_GROUPS.find((group) => group.some((item) => normalizeName(item) === normalized)) || [name];
+}
+
 function pctPos(date, d0, totalMs) {
   if (!date || !d0 || totalMs <= 0) return 0;
   return Math.max(0, Math.min(100, ((new Date(date) - d0) / totalMs) * 100));
@@ -112,10 +127,8 @@ function signalMeta(value, prev, t) {
 
 function branchAliases(row) {
   const aliases = new Set([normalizeName(row.key), normalizeName(row.label)]);
-  if (row.key === "BĐS Dân cư") aliases.add(normalizeName("Bất động sản"));
-  if (row.key === "Sản xuất và Khai thác dầu khí") {
-    aliases.add(normalizeName("SX & KT dầu khí"));
-    aliases.add(normalizeName("Dầu khí"));
+  for (const name of [row.key, row.label]) {
+    for (const alias of aliasesOfIndustry(name)) aliases.add(normalizeName(alias));
   }
   return aliases;
 }

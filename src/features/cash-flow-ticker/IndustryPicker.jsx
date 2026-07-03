@@ -7,7 +7,7 @@ const CORE_INDUSTRY_GROUPS = [
   ["Bất động sản dân cư", "BĐS Dân cư", "Bất động sản"],
   ["Sản xuất, chế biến thép", "Thép"],
   ["Xây dựng"],
-  ["Sóng ngành Vin", "Vin", "Vingroup"],
+  ["Sóng ngành Vin", "Sóng Vin", "Vin", "Vingroup"],
 ];
 
 const CORE_INDUSTRY_KEYS = new Set(CORE_INDUSTRY_GROUPS.flat().map(normalizeIndustryName));
