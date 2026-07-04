@@ -18,7 +18,7 @@ const CACHE_PERSIST_LIMIT = 150;
 const DEFAULT_REFRESH_MS = 15_000;
 const CACHE_KEY = "stock_wave_data_cache";
 const CACHE_SCHEMA_VERSION = 1;
-const STOCK_WAVE_CHANNELS = ["smdt-stock"];
+const STOCK_WAVE_CHANNELS = ["wave"];
 const STOCK_WAVE_REPLY_KEYS = ["StockWaveReply", "StockWaveRequest"];
 
 let globalCache = null;
@@ -315,7 +315,7 @@ function getRealtimeUrl() {
 /* ───────────────────────────────────────────────────────────────────────
  * useRealtimeStockWaveFeed — cầu nối realtime cho dữ liệu sóng cổ phiếu.
  *
- * Mặc định subscribe channel `smdt-stock`; nếu gateway dùng channel khác,
+ * Mặc định subscribe channel `wave`; nếu gateway dùng channel khác,
  * chỉ cần đổi STOCK_WAVE_CHANNELS hoặc cấu hình phía realtime core.
  * ─────────────────────────────────────────────────────────────────────── */
 export function useRealtimeStockWaveFeed(onTick) {

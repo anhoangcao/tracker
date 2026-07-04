@@ -11,7 +11,7 @@ import { resolveRealtimeUrl } from "./realtimeUrl";
  * - Chuẩn hoá thành lưới (cổ phiếu × ngày) → smdt (số), dễ render heatmap.
  *   (Mô hình số giống SMDT ngành; bố cục cột theo mã giống Dòng tiền cổ phiếu.)
  * - Realtime: bật `useRealtimeSMDTTickerFeed` (Socket.IO) trỏ tới Realtime Core,
- *   subscribe channel "smdt-ticker-cross", hoặc gọi `applyTick()` để merge tick mới.
+ *   subscribe channel "smdt-stock", hoặc gọi `applyTick()` để merge tick mới.
  * ─────────────────────────────────────────────────────────────────────── */
 
 const API_BASE_URL = "/api/smdt-ticker";
@@ -23,7 +23,7 @@ const CACHE_SCHEMA_VERSION = 1;
 // Giữ đủ dữ liệu trong RAM (để lịch lùi sâu hơn), nhưng chỉ lưu localStorage 150 phiên
 // gần nhất — tránh QuotaExceededError. Lần mở lại sẽ refetch full ngay nên không mất gì.
 const CACHE_PERSIST_LIMIT = 150;
-const CHANNELS = ["smdt-ticker-cross"];
+const CHANNELS = ["smdt-stock"];
 const REPLY_KEYS = ["SMDTTickerReply", "SMDTTickerRequest"];
 
 let globalCache = null; // RAM Cache to keep data alive across hook remounts
@@ -361,7 +361,7 @@ function getRealtimeUrl() {
  * useRealtimeSMDTTickerFeed — cầu nối tới gateway realtime phía sau Kafka qua Socket.IO.
  *
  * Cách dùng: đặt VITE_SMDT_TICKER_WS_URL (hoặc dùng chung VITE_SMDT_WS_URL) trỏ tới
- * Socket.IO namespace /realtime; subscribe channel "smdt-ticker-cross".
+ * Socket.IO namespace /realtime; subscribe channel "smdt-stock".
  * ─────────────────────────────────────────────────────────────────────── */
 export function useRealtimeSMDTTickerFeed(onTick) {
   const cbRef = useRef(onTick);

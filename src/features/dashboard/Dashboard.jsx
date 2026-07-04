@@ -8,8 +8,8 @@ import { useCashFlowBranch, useRealtimeCashFlowFeed, contentToSig } from "../../
 import { useSMDTTicker, useRealtimeSMDTTickerFeed } from "../../data/useSMDTTicker";
 import { useCashFlowTicker, useRealtimeCashFlowTickerFeed, tickerContentToSig } from "../../data/useCashFlowTicker";
 import { useBranchPath } from "../../data/useBranchPath";
-import { useSMDTBranchCross } from "../../data/useSMDTCross";
-import { useStockSignal } from "../../data/useStockSignal";
+import { useRealtimeSMDTBranchCrossFeed, useSMDTBranchCross } from "../../data/useSMDTCross";
+import { useRealtimeStockSignalFeed, useStockSignal } from "../../data/useStockSignal";
 import { useStockWave, useRealtimeStockWaveFeed } from "../../data/useStockWave";
 import { useTotalTrade } from "../../data/useTotalTrade";
 import { Card, Clink, LiveFooter, Pagination } from "../../components/ui";
@@ -955,14 +955,23 @@ export function ModDashboard() {
   const liveCashBranch = useRealtimeCashFlowFeed(cashBranch.applyTick);
   const liveSmdtTicker = useRealtimeSMDTTickerFeed(smdtTicker.applyTick);
   const liveCashTicker = useRealtimeCashFlowTickerFeed(cashTicker.applyTick);
+  const liveStockSignal = useRealtimeStockSignalFeed(stockSignal.applyTick);
   const liveStockWave = useRealtimeStockWaveFeed(stockWave.applyTick);
+  const liveBranchCross = useRealtimeSMDTBranchCrossFeed(branchCross.applyTick);
 
   const smdtBranchDate = topDate(smdt.datesAsc);
   const cashBranchDate = topDate(cashBranch.datesAsc);
   const cashBranchDatesDesc = useMemo(() => sortDatesDesc(cashBranch.datesAsc), [cashBranch.datesAsc]);
   const smdtTickerDate = topDate(smdtTicker.datesAsc);
   const updatedAt = latestUpdatedAt(smdt.updatedAt, cashBranch.updatedAt, smdtTicker.updatedAt, cashTicker.updatedAt, stockSignal.updatedAt, stockWave.updatedAt, branchCross.updatedAt, totalTrade.updatedAt);
-  const live = liveSmdtBranch.connected || liveCashBranch.connected || liveSmdtTicker.connected || liveCashTicker.connected || liveStockWave.connected;
+  const live =
+    liveSmdtBranch.connected ||
+    liveCashBranch.connected ||
+    liveSmdtTicker.connected ||
+    liveCashTicker.connected ||
+    liveStockSignal.connected ||
+    liveStockWave.connected ||
+    liveBranchCross.connected;
   const waveLatest = stockWave.rows[stockWave.rows.length - 1] || null;
 
   const branchSmdtRows = useMemo(() => {

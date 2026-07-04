@@ -9,7 +9,7 @@ import { useSMDT } from "../../data/useSMDT";
 import { useCashFlowBranch, contentToSig } from "../../data/useCashFlowBranch";
 import { useBranchPath } from "../../data/useBranchPath";
 import { useTotalTrade } from "../../data/useTotalTrade";
-import { useStockSignal } from "../../data/useStockSignal";
+import { useRealtimeStockSignalFeed, useStockSignal } from "../../data/useStockSignal";
 import { Banner, Card } from "../../components/ui";
 import { CfBadge } from "../cash-flow-ticker/CfBadge";
 import { PORTFOLIO_MAX_CODES, loadSavedPortfolio, parsePortfolioCodes, savePortfolioState, sortPortfolioCodes } from "./portfolioState";
@@ -470,6 +470,7 @@ export function ModPhanTichDanhMuc() {
   const branchPath = useBranchPath();
   const totalTrade = useTotalTrade();
   const stockSignal = useStockSignal();
+  useRealtimeStockSignalFeed(stockSignal.applyTick);
 
   const codes = useMemo(() => parsePortfolioCodes(input), [input]);
   const datesDesc = useMemo(() => sortDatesDesc(smdtTicker.datesAsc), [smdtTicker.datesAsc]);

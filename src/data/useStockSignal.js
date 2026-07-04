@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { io } from "socket.io-client";
 import { readDataCache, writeDataCache } from "./cacheStorage";
+import { resolveRealtimeUrl } from "./realtimeUrl";
 
 const API_URL = "/api/stock-signal";
 const CACHE_KEY = "stock_signal_data_cache_v4";
@@ -8,6 +10,7 @@ const LEGACY_CACHE_KEYS = ["stock_signal_data_cache_v3"];
 const CACHE_POINT_LIMIT = 16;
 const DEFAULT_REFRESH_MS = 15_000;
 const REPLY_KEYS = ["StockSignalReply", "StockSignalRequest"];
+const CHANNELS = ["stock-signal"];
 
 let globalCache = null;
 
@@ -70,6 +73,8 @@ function extractSignalRows(data) {
   const firstArray = candidates.find(Array.isArray);
   if (firstArray) return firstArray;
 
+  if (pickTicker(reply)) return [reply];
+  if (pickTicker(data)) return [data];
   if (Array.isArray(reply?.stocks)) return reply.stocks;
   if (Array.isArray(data)) return data;
   return [];
@@ -126,6 +131,68 @@ function normalize(data) {
   const signalByTicker = {};
   for (const row of rows) signalByTicker[row.ticker] = row;
   return { rows, signalByTicker };
+}
+
+function mergeSignalPoints(basePoints = [], patchPoints = []) {
+  const pointMap = new Map(basePoints.map((point) => [getPointDate(point), point]));
+  for (const point of patchPoints) {
+    const date = getPointDate(point);
+    if (date) pointMap.set(date, { ...(pointMap.get(date) || {}), ...point });
+  }
+  return sortSignalPoints([...pointMap.values()]);
+}
+
+function mergeSignals(base, patch) {
+  if (!patch?.rows?.length) return base;
+
+  const rowMap = new Map((base?.rows || []).map((row) => [row.ticker, row]));
+  for (const row of patch.rows) {
+    const current = rowMap.get(row.ticker);
+    if (!current) {
+      rowMap.set(row.ticker, row);
+      continue;
+    }
+
+    const points = mergeSignalPoints(current.points, row.points);
+    const latestPoint = points[points.length - 1] || null;
+    rowMap.set(row.ticker, {
+      ...current,
+      ...row,
+      signal: latestPoint?.signal || row.signal || current.signal,
+      weight: latestPoint?.hold ?? latestPoint?.weight ?? row.weight ?? current.weight,
+      hold: latestPoint?.hold ?? row.hold ?? current.hold,
+      percent: latestPoint?.percent ?? row.percent ?? current.percent,
+      ave: latestPoint?.ave ?? row.ave ?? current.ave,
+      price: latestPoint?.price ?? row.price ?? current.price,
+      smdt: latestPoint?.smdt ?? row.smdt ?? current.smdt,
+      date: latestPoint?.date || row.date || current.date,
+      points,
+    });
+  }
+
+  const rows = [...rowMap.values()].sort((a, b) => a.ticker.localeCompare(b.ticker));
+  const signalByTicker = {};
+  for (const row of rows) signalByTicker[row.ticker] = row;
+  return { rows, signalByTicker };
+}
+
+function extractRealtimeSignals(payload) {
+  if (!payload) return { rows: [], signalByTicker: {} };
+
+  if (typeof payload === "string") {
+    try {
+      return extractRealtimeSignals(JSON.parse(payload));
+    } catch {
+      return { rows: [], signalByTicker: {} };
+    }
+  }
+
+  if (Array.isArray(payload)) {
+    return payload.reduce((acc, item) => mergeSignals(acc, extractRealtimeSignals(item)), { rows: [], signalByTicker: {} });
+  }
+
+  const data = CHANNELS.includes(payload?.channel) && payload?.data ? payload.data : payload;
+  return normalize(data);
 }
 
 function readCacheKey(key) {
@@ -276,5 +343,54 @@ export function useStockSignal() {
     };
   }, [fetchSnapshot]);
 
-  return { ...state, status, error, updatedAt, refresh: () => fetchSnapshot({ force: true }) };
+  const applyTick = useCallback((payload) => {
+    const normalized = extractRealtimeSignals(payload);
+    if (!normalized.rows.length) return;
+
+    const now = new Date();
+    setState((prev) => {
+      const nextState = mergeSignals(prev, normalized);
+      const cacheVal = { ...nextState, updatedAt: now };
+      globalCache = cacheVal;
+      setCachedData(cacheVal);
+      return nextState;
+    });
+    setUpdatedAt(now);
+    setStatus("ready");
+    setError(null);
+  }, []);
+
+  return { ...state, status, error, updatedAt, refresh: () => fetchSnapshot({ force: true }), applyTick };
+}
+
+function getRealtimeUrl() {
+  return resolveRealtimeUrl(import.meta.env.VITE_STOCK_SIGNAL_WS_URL, import.meta.env.VITE_SMDT_WS_URL);
+}
+
+export function useRealtimeStockSignalFeed(onTick) {
+  const cbRef = useRef(onTick);
+  cbRef.current = onTick;
+  const [connected, setConnected] = useState(false);
+
+  useEffect(() => {
+    const socket = io(getRealtimeUrl(), { autoConnect: true });
+
+    const handlePayload = (payload) => {
+      if (extractRealtimeSignals(payload).rows.length > 0) cbRef.current?.(payload);
+    };
+
+    socket.on("connect", () => {
+      console.log("Socket.IO (stock signal) connected to namespace:", socket.nsp);
+      setConnected(true);
+      socket.emit("message", { action: "subscribe", channels: CHANNELS });
+    });
+
+    socket.on("message", handlePayload);
+    socket.on("connect_error", (error) => console.error("Socket.IO (stock signal) connection error:", error.message));
+    socket.on("disconnect", () => setConnected(false));
+
+    return () => socket.disconnect();
+  }, []);
+
+  return { connected };
 }

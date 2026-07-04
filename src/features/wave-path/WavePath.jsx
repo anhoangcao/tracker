@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNarrow } from "../../app/useNarrow";
 import { useBranchPath } from "../../data/useBranchPath";
 import { CORE_BRANCHES } from "../../data/useSMDT";
-import { useSMDTBranchCross, useSMDTTickerCross } from "../../data/useSMDTCross";
+import { useRealtimeSMDTBranchCrossFeed, useRealtimeSMDTTickerCrossFeed, useSMDTBranchCross, useSMDTTickerCross } from "../../data/useSMDTCross";
 import { mono } from "../../styles/tokens";
 import { useTheme } from "../../theme";
 
@@ -1272,6 +1272,8 @@ export function ModLoTrinhDanSong() {
   const smdt = useSMDTBranchCross();
   const tickers = useSMDTTickerCross();
   const branchPath = useBranchPath();
+  useRealtimeSMDTBranchCrossFeed(smdt.applyTick);
+  useRealtimeSMDTTickerCrossFeed(tickers.applyTick);
 
   const [year, setYear] = useState(null);
   const [query, setQuery] = useState("");
