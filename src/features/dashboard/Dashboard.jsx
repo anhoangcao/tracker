@@ -1077,9 +1077,10 @@ export function ModDashboard() {
 
   const smdtBranchCore = branchSmdtRows.filter((row) => row.isCore).slice(0, 7);
   const smdtBranchOther = branchSmdtRows.filter((row) => !row.isCore).slice(0, 7);
-  const tickerRows = rankedTopTickers.slice(0, TOP_LIMIT).map((row) => ({ key: row.ticker, name: row.ticker, value: row.smdt, isCore: isCoreBranchName(row.industry) }));
-  const tickerCoreRows = tickerRows.filter((row) => row.isCore).slice(0, 10);
-  const tickerOtherRows = tickerRows.filter((row) => !row.isCore).slice(0, 10);
+  const tickerRows = rankedTopTickers.map((row) => ({ key: row.ticker, name: row.ticker, value: row.smdt, isCore: isCoreBranchName(row.industry) }));
+  const sortTickerPreview = (rows) => [...rows].sort((a, b) => b.value - a.value || a.name.localeCompare(b.name));
+  const tickerCoreRows = sortTickerPreview(tickerRows.filter((row) => row.isCore)).slice(0, 10);
+  const tickerOtherRows = sortTickerPreview(tickerRows.filter((row) => !row.isCore)).slice(0, 10);
   const signalLatestDate = stockSignalRows.find((row) => row.date)?.date || activeCashTickerDate;
 
   return (
