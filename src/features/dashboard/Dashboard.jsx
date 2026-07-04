@@ -13,6 +13,7 @@ import { useStockSignal } from "../../data/useStockSignal";
 import { useStockWave, useRealtimeStockWaveFeed } from "../../data/useStockWave";
 import { useTotalTrade } from "../../data/useTotalTrade";
 import { Card, Clink, LiveFooter, Pagination } from "../../components/ui";
+import { PORTFOLIO_MAX_CODES, loadSavedPortfolio, parsePortfolioCodes, savePortfolioState } from "../portfolio-analysis/portfolioState";
 
 const SIG_ORDER = ["sn", "si", "so", "st"];
 const CORE_KEYS = new Set(CORE_BRANCHES.map((b) => b.key));
@@ -415,8 +416,10 @@ function TopStrongTable({ rows, date, narrow }) {
 }
 
 function PortfolioBox({ rows }) {
-  const [input, setInput] = useState("STB, BVS, SSI");
-  const picks = useMemo(() => input.toUpperCase().split(/[\s,;]+/).map((v) => v.trim()).filter((v) => v.length >= 2 && v.length <= 5).slice(0, 15), [input]);
+  const saved = useMemo(() => loadSavedPortfolio("STB, BVS, SSI"), []);
+  const initialInput = saved.input || saved.analyzedCodes.join(", ") || "STB, BVS, SSI";
+  const [input, setInput] = useState(initialInput);
+  const picks = useMemo(() => parsePortfolioCodes(input), [input]);
   const rowMap = useMemo(() => new Map(rows.map((row) => [row.ticker, row])), [rows]);
   const analyzed = picks.map((ticker) => {
     const row = rowMap.get(ticker);
@@ -443,16 +446,37 @@ function PortfolioBox({ rows }) {
     { key: "sd", color: "#9b7cf7", label: "Đúng ngành - sai sóng" },
     { key: "ss", color: "#e34948", label: "Sai sóng - sai ngành" },
   ];
+  const updateInput = (value) => {
+    const nextCodes = parsePortfolioCodes(value);
+    setInput(value);
+    savePortfolioState(value, nextCodes);
+  };
+  const analyzePortfolio = () => {
+    if (!picks.length) return;
+    savePortfolioState(input, picks);
+    nav("portfolio-analysis");
+  };
 
   return (
     <Card style={{ padding: 14, display: "flex", flexDirection: "column", gap: 10 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <span style={{ fontSize: 12, fontWeight: 750, color: "var(--t1)" }}>Phân tích danh mục</span>
-        <span style={{ fontSize: 10, color: "var(--t3)" }}>tối đa 15 mã</span>
+        <span style={{ fontSize: 10, color: "var(--t3)" }}>tối đa {PORTFOLIO_MAX_CODES} mã</span>
       </div>
       <div style={{ display: "flex", gap: 8 }}>
-        <input value={input} onChange={(e) => setInput(e.target.value)} style={{ flex: 1, minWidth: 0, padding: "7px 11px", borderRadius: 7, border: "0.5px solid var(--bdr)", background: "var(--elev)", color: "var(--t1)", fontSize: 11, outline: "none" }} placeholder="VCG, HHV, BVS, TCB..." />
-        <button style={{ padding: "7px 12px", borderRadius: 7, background: "var(--B)", color: "white", border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>
+        <input
+          value={input}
+          onChange={(e) => updateInput(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && analyzePortfolio()}
+          style={{ flex: 1, minWidth: 0, padding: "7px 11px", borderRadius: 7, border: "0.5px solid var(--bdr)", background: "var(--elev)", color: "var(--t1)", fontSize: 11, outline: "none" }}
+          placeholder="VCG, HHV, BVS, TCB..."
+        />
+        <button
+          type="button"
+          onClick={analyzePortfolio}
+          disabled={!picks.length}
+          style={{ padding: "7px 12px", borderRadius: 7, background: "var(--B)", color: "white", border: "none", fontSize: 11, fontWeight: 700, cursor: picks.length ? "pointer" : "not-allowed", whiteSpace: "nowrap", opacity: picks.length ? 1 : 0.5 }}
+        >
           <i className="ti ti-sparkles" style={{ marginRight: 5 }} />
           Phân tích
         </button>

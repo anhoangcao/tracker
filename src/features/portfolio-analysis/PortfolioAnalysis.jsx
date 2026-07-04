@@ -12,10 +12,9 @@ import { useTotalTrade } from "../../data/useTotalTrade";
 import { useStockSignal } from "../../data/useStockSignal";
 import { Banner, Card } from "../../components/ui";
 import { CfBadge } from "../cash-flow-ticker/CfBadge";
+import { PORTFOLIO_MAX_CODES, loadSavedPortfolio, parsePortfolioCodes, savePortfolioState, sortPortfolioCodes } from "./portfolioState";
 import { FOUR_KEY_META, evaluateFourKey, fallbackEvalKey, scorePortfolio4Key, seriesFromMatrix } from "./stock4KeyEvaluator";
 
-const MAX_CODES = 15;
-const STORAGE_KEY = "portfolio_analysis_state_v1";
 const INDUSTRY_ALIAS_GROUPS = [
   ["Môi giới chứng khoán", "Chứng khoán"],
   ["Ngân hàng thương mại truyền thống", "Ngân hàng", "Ngân hàng TM truyền thống"],
@@ -94,46 +93,6 @@ function findTradePoint(tradeRow, dateValue) {
   const dates = Object.keys(tradeRow).sort().reverse();
   const target = dates.find((date) => toDateInputValue(date) <= dateValue);
   return target ? tradeRow[target] : null;
-}
-
-function sortCodes(codes) {
-  return [...codes].sort((a, b) => a.localeCompare(b));
-}
-
-function parseCodes(input) {
-  const seen = new Set();
-  const codes = input
-    .split(/[,\s]+/)
-    .map((item) => item.trim().toUpperCase())
-    .filter(Boolean)
-    .flatMap((code) => {
-      if (seen.has(code)) return [];
-      seen.add(code);
-      return [code];
-    })
-    .slice(0, MAX_CODES);
-  return sortCodes(codes);
-}
-
-function loadSavedPortfolio() {
-  try {
-    const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
-    const input = typeof parsed?.input === "string" ? parsed.input : "";
-    const analyzedCodes = Array.isArray(parsed?.analyzedCodes)
-      ? parsed.analyzedCodes.map((code) => String(code || "").trim().toUpperCase()).filter(Boolean).slice(0, MAX_CODES)
-      : [];
-    return { input, analyzedCodes: sortCodes(analyzedCodes) };
-  } catch {
-    return { input: "", analyzedCodes: [] };
-  }
-}
-
-function savePortfolio(input, analyzedCodes) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ input, analyzedCodes }));
-  } catch {
-    // Bỏ qua nếu trình duyệt chặn localStorage.
-  }
 }
 
 function isPositiveSig(sig) {
@@ -267,7 +226,7 @@ function PortfolioInput({ input, setInput, codes, onAnalyze, loading, compact, d
         Nhập danh mục của bạn
       </div>
       <div style={{ display: compact && mobile ? "none" : "block", color: "var(--t3)", fontSize: compact ? 11 : 12, lineHeight: 1.7, marginBottom: compact ? 12 : 22 }}>
-        Nhập tối đa {MAX_CODES} mã cổ phiếu, cách nhau bởi dấu phẩy.
+        Nhập tối đa {PORTFOLIO_MAX_CODES} mã cổ phiếu, cách nhau bởi dấu phẩy.
         {!compact && <><br />Hệ thống kiểm tra SMDT ngành và mã, dòng tiền, tín hiệu từ StockTraders API.</>}
       </div>
       <div style={{ display: compact && mobile ? "flex" : "block", alignItems: "center", gap: 8 }}>
@@ -510,7 +469,7 @@ export function ModPhanTichDanhMuc() {
   const totalTrade = useTotalTrade();
   const stockSignal = useStockSignal();
 
-  const codes = useMemo(() => parseCodes(input), [input]);
+  const codes = useMemo(() => parsePortfolioCodes(input), [input]);
   const datesDesc = useMemo(() => sortDatesDesc(smdtTicker.datesAsc), [smdtTicker.datesAsc]);
   const activeDate = datesDesc[0] || "";
   const activeDateValue = toDateInputValue(activeDate);
@@ -529,7 +488,7 @@ export function ModPhanTichDanhMuc() {
   const tickerNameByKey = useMemo(() => new Map(smdtTicker.tickers.map((tk) => [tk.key, tk.name || tk.key])), [smdtTicker.tickers]);
 
   const rows = useMemo(() => {
-    const validCodes = analyzedCodes.length ? sortCodes(analyzedCodes) : [];
+    const validCodes = analyzedCodes.length ? sortPortfolioCodes(analyzedCodes) : [];
     const foundCount = validCodes.filter((ticker) => Number.isFinite(smdtTicker.matrix[ticker]?.[activeDate])).length || 1;
     return validCodes.map((ticker) => {
       const smdt = smdtTicker.matrix[ticker]?.[activeDate];
@@ -580,7 +539,7 @@ export function ModPhanTichDanhMuc() {
   const hasBlockingLoad = smdtTicker.status === "loading" && !smdtTicker.datesAsc.length;
 
   useEffect(() => {
-    savePortfolio(input, analyzedCodes);
+    savePortfolioState(input, analyzedCodes);
   }, [analyzedCodes, input]);
 
   const analyze = () => {
