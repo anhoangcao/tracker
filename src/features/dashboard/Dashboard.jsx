@@ -170,7 +170,7 @@ function signalToSig(signal) {
 }
 
 function isCoreBranchName(name) {
-  return CORE_LABELS.has(name);
+  return aliasesOfIndustry(name).some((alias) => CORE_LABELS.has(alias));
 }
 
 function getLatestTrade(totalTrade, ticker) {
@@ -912,11 +912,11 @@ export function ModDashboard() {
     return map;
   }, [branchSmdtRows]);
 
+  const cashTickerDatesDesc = useMemo(() => sortDatesDesc(cashTicker.buckets.map((bucket) => bucket.date)), [cashTicker.buckets]);
   const activeCashTickerDate = useMemo(() => {
-    const datesDesc = sortDatesDesc(cashTicker.buckets.map((bucket) => bucket.date));
-    const index = findDateIndex(datesDesc, toDateInputValue(smdtTickerDate));
-    return index >= 0 ? datesDesc[index] : cashTicker.latest?.date || "";
-  }, [cashTicker.buckets, cashTicker.latest?.date, smdtTickerDate]);
+    const index = findDateIndex(cashTickerDatesDesc, toDateInputValue(smdtTickerDate));
+    return index >= 0 ? cashTickerDatesDesc[index] : cashTicker.latest?.date || "";
+  }, [cashTickerDatesDesc, cashTicker.latest?.date, smdtTickerDate]);
 
   const activeCashBucket = useMemo(
     () => findBucketByDate(cashTicker.buckets, activeCashTickerDate) || cashTicker.latest,
@@ -924,16 +924,23 @@ export function ModDashboard() {
   );
 
   const cashTickerRows = activeCashBucket?.rows || [];
-  const cashByTicker = useMemo(() => new Map(cashTickerRows.map((row) => [row.ticker, row])), [cashTickerRows]);
-  const cashTickerPool = useMemo(() => {
-    const seen = new Map();
-    for (const ticker of cashTicker.allowedTickers || []) {
-      const industry = branchPath.tickerToBranch[ticker];
-      if (!industry || seen.has(ticker)) continue;
-      seen.set(ticker, { ticker, industry });
+  const cashTickerUniverse = useMemo(() => {
+    const source = cashTicker.allowedTickers?.length ? cashTicker.allowedTickers : cashTickerRows.map((row) => row.ticker);
+    return [...new Set(source)].filter(Boolean).sort((a, b) => a.localeCompare(b));
+  }, [cashTicker.allowedTickers, cashTickerRows]);
+  const cashByTicker = useMemo(() => {
+    const map = new Map();
+    const startIndex = findDateIndex(cashTickerDatesDesc, toDateInputValue(activeCashTickerDate));
+    if (startIndex < 0) return map;
+    for (let index = startIndex; index < cashTickerDatesDesc.length; index += 1) {
+      const bucket = findBucketByDate(cashTicker.buckets, cashTickerDatesDesc[index]);
+      for (const row of bucket?.rows || []) {
+        if (!map.has(row.ticker)) map.set(row.ticker, row);
+      }
+      if (cashTickerUniverse.length && map.size >= cashTickerUniverse.length) break;
     }
-    return [...seen.values()].sort((a, b) => a.ticker.localeCompare(b.ticker));
-  }, [branchPath.tickerToBranch, cashTicker.allowedTickers]);
+    return map;
+  }, [activeCashTickerDate, cashTicker.buckets, cashTickerDatesDesc, cashTickerUniverse]);
   const smdtTickerPool = useMemo(() => {
     return smdtTicker.tickers
       .flatMap((tk) => {
@@ -949,15 +956,17 @@ export function ModDashboard() {
       other: { si: 0, sn: 0, so: 0, st: 0 },
       all: { si: 0, sn: 0, so: 0, st: 0 },
     };
-    for (const item of cashTickerPool) {
-      const sig = tickerContentToSig(cashByTicker.get(item.ticker)?.content || "");
+    for (const ticker of cashTickerUniverse) {
+      const row = cashByTicker.get(ticker);
+      const sig = tickerContentToSig(row?.content || "");
       if (!sig) continue;
-      const group = isCashFlowCoreIndustry(item.industry) ? "core" : "other";
+      const branch = branchPath.tickerToBranch[ticker] || "";
+      const group = isCashFlowCoreIndustry(branch) ? "core" : "other";
       byGroup[group][sig] += 1;
       byGroup.all[sig] += 1;
     }
     return byGroup;
-  }, [cashByTicker, cashTickerPool]);
+  }, [branchPath.tickerToBranch, cashByTicker, cashTickerUniverse]);
 
   const branchCashCounts = useMemo(() => {
     const counts = {
@@ -1104,7 +1113,7 @@ export function ModDashboard() {
         </DashboardCard>
 
         <DashboardCard onClick={() => nav("dong-tien-cp")}>
-          <DashHeader title="Dòng tiền cổ phiếu" meta={`${fmtNum(cashTickerPool.length)} mã${activeCashTickerDate ? ` · ${fmtFull(activeCashTickerDate)}` : ""}`} action="Chi tiết ›" onClick={() => nav("dong-tien-cp")} />
+          <DashHeader title="Dòng tiền cổ phiếu" meta={`${fmtNum(cashTickerUniverse.length)} mã${activeCashTickerDate ? ` · ${fmtFull(activeCashTickerDate)}` : ""}`} action="Chi tiết ›" onClick={() => nav("dong-tien-cp")} />
           <SplitDonuts
             leftTitle="Chủ lực"
             rightTitle="Phụ"
