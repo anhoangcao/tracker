@@ -122,9 +122,30 @@ function lookupIndustryValue(map, name) {
   return map.get(normalizeIndustryName(name));
 }
 
-function tickerScore(smdt, sig, branchSmdt) {
-  const sigBonus = { si: 18, sn: 9, so: -6, st: -14 }[sig] || 0;
-  return smdt + sigBonus + (Number.isFinite(branchSmdt) ? branchSmdt * 0.18 : 0);
+function sigWeight(sig) {
+  return { si: 3, sn: 1.6, so: -1.1, st: -2.4 }[sig] || 0;
+}
+
+function isPositiveSig(sig) {
+  return sig === "si" || sig === "sn";
+}
+
+function classifyStrongTicker(smdt, prevSmdt, prev2Smdt, tickerSig, branchSmdt, branchSig) {
+  const hasPrev = Number.isFinite(prevSmdt);
+  const momentum = Number.isFinite(prevSmdt) ? smdt - prevSmdt : 0;
+  const prevMomentum = Number.isFinite(prevSmdt) && Number.isFinite(prev2Smdt) ? prevSmdt - prev2Smdt : 0;
+  const crossedStrong = hasPrev && prevSmdt < 70 && smdt > 70;
+
+  if (crossedStrong) return "vm";
+  if (smdt >= 70) return "dt";
+
+  const rising = momentum > 0;
+  const risingTwoSessions = momentum > 0 && prevMomentum > 0;
+  const tickerFlowSupported = isPositiveSig(tickerSig) && (smdt >= 45 || rising);
+  const branchFlowSupported = Number.isFinite(branchSmdt) && branchSmdt >= 70 && isPositiveSig(branchSig) && smdt >= 45;
+  if ((smdt >= 50 && rising) || risingTwoSessions || tickerFlowSupported || branchFlowSupported) return "tn";
+
+  return null;
 }
 
 function smdtColor(value) {
@@ -136,6 +157,10 @@ function smdtColor(value) {
 
 function sigLabel(sig) {
   return { si: "Đổ vào", sn: "Nhen nhóm", so: "Đang thoát", st: "Thoát ra" }[sig] || "—";
+}
+
+function strongStatusLabel(status) {
+  return { vm: "Vừa mạnh", dt: "Duy trì", tn: "Tiềm năng" }[status] || "—";
 }
 
 function signalToSig(signal) {
@@ -412,7 +437,7 @@ function TopStrongTable({ rows, date, narrow }) {
                 <td style={{ padding: "6px 8px", textAlign: "right", fontWeight: 650, color: "var(--t1)", ...mono }}>{row.price ? fmtNum(row.price) : "—"}</td>
                 <td style={{ padding: "6px 8px" }}><SignalPill sig={row.tickerSig} /></td>
                 <td style={{ padding: "6px 8px" }}><SignalPill sig={row.branchSig} /></td>
-                <td style={{ padding: "6px 8px", fontSize: 10, color: row.smdt >= 100 ? "#9b7cf7" : "var(--t3)" }}>{row.smdt >= 100 ? "Vừa mạnh" : "Duy trì"}</td>
+                <td style={{ padding: "6px 8px", fontSize: 10, color: row.status === "vm" ? "#9b7cf7" : row.status === "tn" ? "#eda100" : "var(--t3)" }}>{strongStatusLabel(row.status)}</td>
               </tr>
             ))}
           </tbody>
@@ -909,6 +934,14 @@ export function ModDashboard() {
     }
     return [...seen.values()].sort((a, b) => a.ticker.localeCompare(b.ticker));
   }, [branchPath.tickerToBranch, cashTicker.allowedTickers]);
+  const smdtTickerPool = useMemo(() => {
+    return smdtTicker.tickers
+      .flatMap((tk) => {
+        const industry = branchPath.tickerToBranch[tk.key];
+        return industry ? [{ ...tk, industry }] : [];
+      })
+      .sort((a, b) => a.key.localeCompare(b.key));
+  }, [branchPath.tickerToBranch, smdtTicker.tickers]);
 
   const cashTickerCounts = useMemo(() => {
     const byGroup = {
@@ -942,37 +975,53 @@ export function ModDashboard() {
   }, [branchCashRows]);
 
   const stockSignalByTicker = useMemo(() => new Map(stockSignal.rows.map((row) => [row.ticker, row])), [stockSignal.rows]);
+  const smdtTickerDatesDesc = useMemo(() => sortDatesDesc(smdtTicker.datesAsc), [smdtTicker.datesAsc]);
+  const smdtTickerDateIndex = useMemo(() => findDateIndex(smdtTickerDatesDesc, toDateInputValue(smdtTickerDate)), [smdtTickerDate, smdtTickerDatesDesc]);
+  const prevSmdtTickerDate = smdtTickerDateIndex >= 0 ? smdtTickerDatesDesc[smdtTickerDateIndex + 1] || "" : "";
+  const prev2SmdtTickerDate = smdtTickerDateIndex >= 0 ? smdtTickerDatesDesc[smdtTickerDateIndex + 2] || "" : "";
 
-  const topTickers = useMemo(() => {
-    const rows = smdtTicker.tickers.flatMap((tk) => {
+  const allTopTickers = useMemo(() => {
+    const rows = smdtTickerPool.flatMap((tk) => {
       const smdtValue = smdtTicker.matrix[tk.key]?.[smdtTickerDate];
       if (!Number.isFinite(smdtValue)) return [];
       const cash = cashByTicker.get(tk.key);
-      const industry = branchPath.tickerToBranch[tk.key] || "Khác";
+      const industry = tk.industry;
       const branchSmdt = lookupIndustryValue(branchSmdtByLabel, industry);
       const tickerSig = tickerContentToSig(cash?.content || "");
       const branchSig = lookupIndustryValue(branchCashByLabel, industry);
       const signal = stockSignalByTicker.get(tk.key);
       const trade = getLatestTrade(totalTrade, tk.key);
+      const prevSmdt = smdtTicker.matrix[tk.key]?.[prevSmdtTickerDate];
+      const prev2Smdt = smdtTicker.matrix[tk.key]?.[prev2SmdtTickerDate];
+      const momentum = Number.isFinite(prevSmdt) ? smdtValue - prevSmdt : 0;
+      const status = classifyStrongTicker(smdtValue, prevSmdt, prev2Smdt, tickerSig, branchSmdt, branchSig);
       return [{
         ticker: tk.key,
         name: tk.name || tk.key,
         industry,
         smdt: smdtValue,
+        prevSmdt,
+        prev2Smdt,
+        momentum,
         branchSmdt,
         sig: tickerSig,
         tickerSig,
         branchSig,
+        status,
         price: cash?.price || trade?.price || signal?.price,
-        score: tickerScore(smdtValue, tickerSig, branchSmdt),
+        score: smdtValue + (Number.isFinite(branchSmdt) ? branchSmdt * 0.22 : 0) + sigWeight(tickerSig) * 8 + sigWeight(branchSig) * 4 + Math.max(-12, Math.min(18, momentum * 0.7)),
       }];
     });
     return rows.sort((a, b) => a.ticker.localeCompare(b.ticker));
-  }, [branchCashByLabel, branchPath.tickerToBranch, branchSmdtByLabel, cashByTicker, smdtTicker.matrix, smdtTicker.tickers, smdtTickerDate, stockSignalByTicker, totalTrade]);
+  }, [branchCashByLabel, branchSmdtByLabel, cashByTicker, prev2SmdtTickerDate, prevSmdtTickerDate, smdtTicker.matrix, smdtTickerDate, smdtTickerPool, stockSignalByTicker, totalTrade]);
 
   const rankedTopTickers = useMemo(() => {
-    return [...topTickers].sort((a, b) => b.score - a.score || b.smdt - a.smdt);
-  }, [topTickers]);
+    return [...allTopTickers].sort((a, b) => b.score - a.score || b.smdt - a.smdt);
+  }, [allTopTickers]);
+
+  const rankedStrongTickers = useMemo(() => {
+    return rankedTopTickers.filter((row) => row.status);
+  }, [rankedTopTickers]);
 
   const stockSignalRows = useMemo(() => {
     return stockSignal.rows.map((row) => {
@@ -1075,7 +1124,7 @@ export function ModDashboard() {
         <SmdtPreview
           title="SMDT ngành"
           meta={`${fmtNum(branchSmdtRows.length)} ngành${smdtBranchDate ? ` · ${fmtFull(smdtBranchDate)}` : ""}`}
-          leftTitle="Chủ lực"
+          leftTitle="Chủ lực · top"
           rightTitle="Ngành phụ · top"
           leftRows={smdtBranchCore}
           rightRows={smdtBranchOther}
@@ -1083,7 +1132,7 @@ export function ModDashboard() {
         />
         <SmdtPreview
           title="SMDT cổ phiếu"
-          meta={`${fmtNum(smdtTicker.tickers.length)} mã${smdtTickerDate ? ` · ${fmtFull(smdtTickerDate)}` : ""}`}
+          meta={`${fmtNum(smdtTickerPool.length)} mã${smdtTickerDate ? ` · ${fmtFull(smdtTickerDate)}` : ""}`}
           leftTitle="Chủ lực · top"
           rightTitle="Ngành phụ · top"
           leftRows={tickerCoreRows}
@@ -1094,7 +1143,7 @@ export function ModDashboard() {
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: narrow ? "1fr" : "1fr 1fr", gap: 14 }}>
-        <TopStrongTable rows={rankedTopTickers} date={smdtTickerDate} narrow={narrow} />
+        <TopStrongTable rows={rankedStrongTickers} date={smdtTickerDate} narrow={narrow} />
         <PortfolioBox rows={rankedTopTickers} />
       </div>
 
