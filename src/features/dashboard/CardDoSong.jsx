@@ -47,7 +47,6 @@ const CSS = `
   background:var(--surf,#111520);border:.5px solid var(--bdr,#242E42);
   border-radius:12px;padding:16px;display:flex;flex-direction:column;
   align-items:center;gap:12px;cursor:pointer;transition:background .2s;
-  min-height:100%;
 }
 .ds-card:hover{background:var(--elev,#171D2E)}
 .ds-hdr{width:100%;display:flex;align-items:flex-start;justify-content:space-between;gap:10px}

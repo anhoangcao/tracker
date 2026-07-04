@@ -783,6 +783,14 @@ function SignalPortfolio({ rows, date, live }) {
   const totalPages = Math.max(1, Math.ceil(tabRows.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
   const visible = tabRows.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+  const cols = [
+    { label: "Mã", width: "14%", align: "left" },
+    { label: "DT cổ phiếu", width: "19%", align: "center" },
+    { label: "SMDT mã", width: "17%", align: "center" },
+    { label: "Giá", width: "16%", align: "right" },
+    { label: "Giá vốn", width: "17%", align: "right" },
+    { label: "Lãi / Lỗ", width: "17%", align: "right" },
+  ];
 
   const switchTab = (value) => {
     setTab(value);
@@ -791,42 +799,45 @@ function SignalPortfolio({ rows, date, live }) {
 
   return (
     <Card noPad style={{ overflow: "hidden", display: "flex", flexDirection: "column" }}>
-      <div style={{ padding: "10px 14px", borderBottom: "0.5px solid var(--bdr)", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 6 }}>
+      <div style={{ padding: "10px 14px", borderBottom: "0.5px solid var(--bdr)", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
         <div>
           <span style={{ fontSize: 12, fontWeight: 750, color: "var(--t1)" }}>Danh mục đầu tư giả lập</span>
           <span style={{ fontSize: 10, color: "var(--t3)", marginLeft: 8 }}>{date ? fmtFull(date) : "—"} </span>
         </div>
-        <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
           <ChipButton active={tab === "MUA"} tone="G" onClick={() => switchTab("MUA")}>Mua <span style={{ marginLeft: 3, ...mono }}>{buyRows.length}</span></ChipButton>
           <ChipButton active={tab === "BAN"} tone="R" onClick={() => switchTab("BAN")}>Bán <span style={{ marginLeft: 3, ...mono }}>{sellRows.length}</span></ChipButton>
           <Clink onClick={() => nav("top-ma-manh")}>Xem tất cả ›</Clink>
         </div>
       </div>
       <div style={{ overflowX: "auto" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11, minWidth: 440 }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed", fontSize: 11, minWidth: 500 }}>
+          <colgroup>
+            {cols.map((col) => <col key={col.label} style={{ width: col.width }} />)}
+          </colgroup>
           <thead>
             <tr style={{ background: "var(--elev)" }}>
-              {["Mã", "DT cổ phiếu", "SMDT mã", "Giá", "Giá vốn", "Lãi / Lỗ"].map((h, i) => (
-                <th key={h} style={{ padding: i === 0 ? "5px 10px" : i === 1 ? "5px 4px" : "5px 8px", width: i === 1 ? 78 : undefined, fontSize: 9, fontWeight: 800, color: "var(--t3)", textTransform: "uppercase", borderBottom: "0.5px solid var(--bdr)", textAlign: i >= 3 ? "right" : "left", whiteSpace: "nowrap" }}>{h}</th>
+              {cols.map((col, i) => (
+                <th key={col.label} style={{ padding: i === 0 ? "6px 12px" : "6px 8px", fontSize: 9, fontWeight: 800, color: "var(--t3)", textTransform: "uppercase", borderBottom: "0.5px solid var(--bdr)", textAlign: col.align, whiteSpace: "nowrap" }}>{col.label}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {visible.map((row) => (
               <tr key={`${row.ticker}-${row.date}`} style={{ borderBottom: "0.5px solid var(--bdrs)" }}>
-                <td style={{ padding: "6px 10px", fontWeight: 800, color: "var(--t1)" }}>{row.ticker}</td>
-                <td style={{ padding: "6px 4px" }}><SignalPill compact sig={row.cashSig || signalToSig(row.signal)} /></td>
-                <td style={{ padding: "6px 8px" }}><SmdtBarCell value={row.smdt} /></td>
-                <td style={{ padding: "6px 8px", textAlign: "right", fontWeight: 650, color: "var(--t1)", ...mono }}>{Number.isFinite(row.price) ? fmtNum(row.price) : "—"}</td>
-                <td style={{ padding: "6px 8px", textAlign: "right", color: "var(--t2)", ...mono }}>{Number.isFinite(row.ave) ? fmtNum(row.ave) : "—"}</td>
-                <td style={{ padding: "6px 8px", textAlign: "right" }}><PnlCell price={row.price} ave={row.ave} /></td>
+                <td style={{ padding: "7px 12px", fontWeight: 800, color: "var(--t1)" }}>{row.ticker}</td>
+                <td style={{ padding: "7px 8px", textAlign: "center" }}><SignalPill compact sig={row.cashSig || signalToSig(row.signal)} /></td>
+                <td style={{ padding: "7px 8px", textAlign: "center" }}><SmdtBarCell value={row.smdt} /></td>
+                <td style={{ padding: "7px 8px", textAlign: "right", fontWeight: 650, color: "var(--t1)", ...mono }}>{Number.isFinite(row.price) ? fmtNum(row.price) : "—"}</td>
+                <td style={{ padding: "7px 8px", textAlign: "right", color: "var(--t2)", ...mono }}>{Number.isFinite(row.ave) ? fmtNum(row.ave) : "—"}</td>
+                <td style={{ padding: "7px 8px", textAlign: "right" }}><PnlCell price={row.price} ave={row.ave} /></td>
               </tr>
             ))}
           </tbody>
         </table>
         {!visible.length && <EmptyHint>Chưa có tín hiệu {tab === "MUA" ? "mua" : "bán"}.</EmptyHint>}
       </div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "5px 14px", borderTop: "0.5px solid var(--bdr)", marginTop: "auto", gap: 8 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 14px", borderTop: "0.5px solid var(--bdr)", marginTop: "auto", gap: 8 }}>
         <span style={{ fontSize: 10, color: "var(--t3)" }}>{tabRows.length ? `${(safePage - 1) * PAGE_SIZE + 1}–${Math.min(safePage * PAGE_SIZE, tabRows.length)} / ${tabRows.length} mã` : "0 mã"}</span>
         <Pagination compact page={safePage} totalPages={totalPages} onChange={setPage} />
       </div>
