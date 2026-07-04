@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { io } from "socket.io-client";
+import { readDataCache, writeDataCache } from "./cacheStorage";
 import { resolveRealtimeUrl } from "./realtimeUrl";
 
 /* ───────────────────────────────────────────────────────────────────────
@@ -18,6 +19,7 @@ const INITIAL_LIMIT = 500;
 const FULL_LIMIT = "full";
 const DEFAULT_REFRESH_MS = 15_000;
 const CACHE_KEY = "smdt_ticker_data_cache";
+const CACHE_SCHEMA_VERSION = 1;
 // Giữ đủ dữ liệu trong RAM (để lịch lùi sâu hơn), nhưng chỉ lưu localStorage 150 phiên
 // gần nhất — tránh QuotaExceededError. Lần mở lại sẽ refetch full ngay nên không mất gì.
 const CACHE_PERSIST_LIMIT = 150;
@@ -184,9 +186,7 @@ function extractRealtimeTicks(payload) {
 function getCachedData() {
   if (globalCache) return globalCache;
   try {
-    const serialized = localStorage.getItem(CACHE_KEY);
-    if (!serialized) return null;
-    const parsed = JSON.parse(serialized);
+    const parsed = readDataCache(CACHE_KEY, { schemaVersion: CACHE_SCHEMA_VERSION });
     if (parsed && parsed.tickers && parsed.datesAsc && parsed.matrix) {
       globalCache = {
         tickers: parsed.tickers,
@@ -214,14 +214,15 @@ function setCachedData(data) {
       for (const date in byDate) if (keep.has(date)) row[date] = byDate[date];
       matrix[ticker] = row;
     }
-    localStorage.setItem(
+    writeDataCache(
       CACHE_KEY,
-      JSON.stringify({
+      {
         tickers: data.tickers,
         datesAsc,
         matrix,
         updatedAt: data.updatedAt ? data.updatedAt.toISOString() : null,
-      })
+      },
+      { schemaVersion: CACHE_SCHEMA_VERSION }
     );
   } catch (e) {
     console.warn("Failed to save SMDTTicker cache:", e);

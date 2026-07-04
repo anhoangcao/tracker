@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { readDataCache, writeDataCache } from "./cacheStorage";
 
 const API_URL = "/api/stock-signal";
 const CACHE_KEY = "stock_signal_data_cache_v4";
+const CACHE_SCHEMA_VERSION = 1;
 const LEGACY_CACHE_KEYS = ["stock_signal_data_cache_v3"];
 const CACHE_POINT_LIMIT = 16;
 const DEFAULT_REFRESH_MS = 15_000;
@@ -128,9 +130,7 @@ function normalize(data) {
 
 function readCacheKey(key) {
   try {
-    const serialized = localStorage.getItem(key);
-    if (!serialized) return null;
-    const parsed = JSON.parse(serialized);
+    const parsed = readDataCache(key, { schemaVersion: CACHE_SCHEMA_VERSION });
     const rows = Array.isArray(parsed?.rows) ? parsed.rows : [];
     if (parsed && parsed.signalByTicker && rows.length) {
       return {
@@ -183,26 +183,28 @@ function setCachedData(data) {
   const signalByTicker = {};
   for (const row of rows) signalByTicker[row.ticker] = row;
   try {
-    localStorage.setItem(
+    writeDataCache(
       CACHE_KEY,
-      JSON.stringify({
+      {
         rows,
         signalByTicker,
         updatedAt: data.updatedAt ? data.updatedAt.toISOString() : null,
-      })
+      },
+      { schemaVersion: CACHE_SCHEMA_VERSION }
     );
   } catch (e) {
     try {
       const fallbackRows = serializeRows(data, 1);
       const fallbackSignalByTicker = {};
       for (const row of fallbackRows) fallbackSignalByTicker[row.ticker] = row;
-      localStorage.setItem(
+      writeDataCache(
         CACHE_KEY,
-        JSON.stringify({
+        {
           rows: fallbackRows,
           signalByTicker: fallbackSignalByTicker,
           updatedAt: data.updatedAt ? data.updatedAt.toISOString() : null,
-        })
+        },
+        { schemaVersion: CACHE_SCHEMA_VERSION }
       );
     } catch (retryError) {
       console.warn("Failed to save StockSignal cache:", retryError);

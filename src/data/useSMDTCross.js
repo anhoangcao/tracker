@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { readDataCache, writeDataCache } from "./cacheStorage";
 import { CORE_BRANCHES } from "./useSMDT";
 
 const ACCOUNT = "thao.dtt";
@@ -6,6 +7,7 @@ const BRANCH_CROSS_API = "/service/data/getSMDTBranchCross";
 const TICKER_CROSS_API = "/service/data/getSMDTTickerCross";
 const BRANCH_CACHE_KEY = "smdt_branch_cross_data_cache";
 const TICKER_CACHE_KEY = "smdt_ticker_cross_data_cache";
+const CACHE_SCHEMA_VERSION = 1;
 
 const CORE_KEYS = new Set(CORE_BRANCHES.map((item) => item.key));
 
@@ -20,7 +22,7 @@ function toNumber(value) {
 
 function readCache(key) {
   try {
-    const parsed = JSON.parse(localStorage.getItem(key) || "null");
+    const parsed = readDataCache(key, { schemaVersion: CACHE_SCHEMA_VERSION });
     return parsed && typeof parsed === "object" ? parsed : null;
   } catch {
     return null;
@@ -29,7 +31,7 @@ function readCache(key) {
 
 function writeCache(key, value) {
   try {
-    localStorage.setItem(key, JSON.stringify(value));
+    writeDataCache(key, value, { schemaVersion: CACHE_SCHEMA_VERSION });
   } catch {
     // Bỏ qua nếu trình duyệt chặn hoặc quota localStorage đầy.
   }
