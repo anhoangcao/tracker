@@ -186,6 +186,40 @@ function signalToSig(signal) {
   return null;
 }
 
+function tradeToSignal(trade) {
+  const value = Number(trade);
+  if (value === 1) return "MUA";
+  if (value === 2) return "BAN";
+  return null;
+}
+
+function getStockSignalRowForDate(row, date) {
+  const points = Array.isArray(row?.points) ? row.points : [];
+  const dateValue = toDateInputValue(date);
+  if (!points.length) return row;
+
+  const eligible = points.filter((point) => !dateValue || toDateInputValue(point.date) <= dateValue);
+  const latestPoint = eligible[eligible.length - 1] || points[points.length - 1] || row;
+  const dayPoint = dateValue
+    ? eligible.findLast((point) => toDateInputValue(point.date) === dateValue)
+    : latestPoint;
+  const hold = toNumber(latestPoint?.hold ?? latestPoint?.weight ?? row?.hold ?? row?.weight);
+  const percent = toNumber(dayPoint?.percent ?? latestPoint?.percent ?? row?.percent);
+  const pointSignal = dayPoint?.signal === "MUA" || dayPoint?.signal === "BAN" ? dayPoint.signal : null;
+  const signal = tradeToSignal(dayPoint?.trade) || pointSignal || "Nắm giữ";
+
+  return {
+    ...row,
+    ...latestPoint,
+    ...(dayPoint || {}),
+    date: dayPoint?.date || latestPoint?.date || row.date,
+    signal,
+    weight: Number.isFinite(hold) ? hold : percent,
+    hold,
+    percent,
+  };
+}
+
 function isCoreBranchName(name) {
   return aliasesOfIndustry(name).some((alias) => CORE_LABELS.has(alias));
 }
@@ -727,7 +761,6 @@ function SmdtBarCell({ value }) {
   const tone = smdtChipTone(value);
   return (
     <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 5, minWidth: 62, padding: "4px 8px", borderRadius: 7, background: tone.bg, border: `0.5px solid ${tone.border}`, color: tone.color, fontSize: 11, fontWeight: 800, whiteSpace: "nowrap", ...mono }}>
-      <span style={{ width: 6, height: 6, borderRadius: "50%", background: tone.color, flexShrink: 0 }} />
       {value.toFixed(1)}
     </span>
   );
@@ -744,7 +777,7 @@ function SignalPortfolio({ rows, date, live }) {
   const [tab, setTab] = useState("MUA");
   const [page, setPage] = useState(1);
   const sortByTicker = (items) => [...items].sort((a, b) => a.ticker.localeCompare(b.ticker));
-  const buyRows = useMemo(() => sortByTicker(rows.filter((row) => row.signal === "MUA" && toNumber(row.weight ?? row.hold) > 0)), [rows]);
+  const buyRows = useMemo(() => sortByTicker(rows.filter((row) => row.signal === "MUA")), [rows]);
   const sellRows = useMemo(() => sortByTicker(rows.filter((row) => row.signal === "BAN")), [rows]);
   const tabRows = tab === "MUA" ? buyRows : sellRows;
   const totalPages = Math.max(1, Math.ceil(tabRows.length / PAGE_SIZE));
@@ -821,7 +854,7 @@ function SignalLog({ topRows, branchRows, stockSignalRows, waveRows }) {
   const [page, setPage] = useState(1);
   const logs = useMemo(() => {
     const items = [];
-    for (const row of stockSignalRows.slice(0, 14)) {
+    for (const row of stockSignalRows.filter((item) => item.signal === "MUA" || item.signal === "BAN").slice(0, 14)) {
       items.push({ kind: "ma", type: row.signal === "MUA" ? "mua" : "ban", time: row.date ? fmtFull(row.date) : "Live", title: row.ticker, tag: row.signal === "MUA" ? "MUA" : "BÁN", sub: `${row.signal === "MUA" ? "Tín hiệu mua" : "Tín hiệu bán"}${row.percent != null ? ` ${row.percent}%` : ""}${Number.isFinite(row.price) ? ` · Giá ${fmtNum(row.price)}` : ""}` });
     }
     for (const row of topRows.slice(0, 8)) {
@@ -1082,17 +1115,26 @@ export function ModDashboard() {
     return rankedTopTickers.filter((row) => row.status);
   }, [rankedTopTickers]);
 
+  const latestStockSignalDate = useMemo(() => {
+    const dates = stockSignal.rows.flatMap((row) => {
+      const points = Array.isArray(row.points) ? row.points : [];
+      return points.length ? points.map((point) => point.date).filter(Boolean) : [row.date].filter(Boolean);
+    });
+    return sortDatesDesc(dates)[0] || "";
+  }, [stockSignal.rows]);
+
   const stockSignalRows = useMemo(() => {
     return stockSignal.rows.map((row) => {
+      const signalRow = getStockSignalRowForDate(row, latestStockSignalDate);
       const smdtValue = smdtTicker.matrix[row.ticker]?.[smdtTickerDate];
       const cash = cashByTicker.get(row.ticker);
       return {
-        ...row,
-        smdt: Number.isFinite(smdtValue) ? smdtValue : row.smdt,
+        ...signalRow,
+        smdt: Number.isFinite(smdtValue) ? smdtValue : signalRow.smdt,
         cashSig: tickerContentToSig(cash?.content || ""),
       };
     }).sort((a, b) => (b.date || "").localeCompare(a.date || ""));
-  }, [cashByTicker, smdtTicker.matrix, smdtTickerDate, stockSignal.rows]);
+  }, [cashByTicker, latestStockSignalDate, smdtTicker.matrix, smdtTickerDate, stockSignal.rows]);
 
   const waveWindowDates = useMemo(() => {
     const lastDate = branchCross.datesAsc.at(-1);
@@ -1131,7 +1173,7 @@ export function ModDashboard() {
   const sortTickerPreview = (rows) => [...rows].sort((a, b) => b.value - a.value || a.name.localeCompare(b.name));
   const tickerCoreRows = sortTickerPreview(tickerRows.filter((row) => row.isCore)).slice(0, 10);
   const tickerOtherRows = sortTickerPreview(tickerRows.filter((row) => !row.isCore)).slice(0, 10);
-  const signalLatestDate = stockSignalRows.find((row) => row.date)?.date || activeCashTickerDate;
+  const signalLatestDate = latestStockSignalDate || stockSignalRows.find((row) => row.date)?.date || activeCashTickerDate;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
