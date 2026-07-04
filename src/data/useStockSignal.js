@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 const API_URL = "/api/stock-signal";
-const CACHE_KEY = "stock_signal_data_cache_v3";
+const CACHE_KEY = "stock_signal_data_cache_v4";
+const LEGACY_CACHE_KEYS = ["stock_signal_data_cache_v3"];
+const CACHE_POINT_LIMIT = 16;
 const DEFAULT_REFRESH_MS = 15_000;
 const REPLY_KEYS = ["StockSignalReply", "StockSignalRequest"];
 
@@ -124,19 +126,18 @@ function normalize(data) {
   return { rows, signalByTicker };
 }
 
-function getCachedData() {
-  if (globalCache) return globalCache;
+function readCacheKey(key) {
   try {
-    const serialized = localStorage.getItem(CACHE_KEY);
+    const serialized = localStorage.getItem(key);
     if (!serialized) return null;
     const parsed = JSON.parse(serialized);
-    if (parsed && parsed.signalByTicker) {
-      globalCache = {
+    const rows = Array.isArray(parsed?.rows) ? parsed.rows : [];
+    if (parsed && parsed.signalByTicker && rows.length) {
+      return {
         rows: Array.isArray(parsed.rows) ? parsed.rows : [],
         signalByTicker: parsed.signalByTicker,
         updatedAt: parsed.updatedAt ? new Date(parsed.updatedAt) : null,
       };
-      return globalCache;
     }
   } catch (e) {
     console.warn("Failed to load StockSignal cache:", e);
@@ -144,26 +145,41 @@ function getCachedData() {
   return null;
 }
 
-function setCachedData(data) {
-  const rows = (data.rows || []).map((row) => ({
+function getCachedData() {
+  if (globalCache) return globalCache;
+  globalCache = readCacheKey(CACHE_KEY) || LEGACY_CACHE_KEYS.map(readCacheKey).find(Boolean) || null;
+  return globalCache;
+}
+
+function serializeRows(data, pointLimit) {
+  return (data.rows || []).map((row) => ({
     ticker: row.ticker,
     signal: row.signal,
     weight: row.weight,
+    hold: row.hold,
     percent: row.percent,
+    ave: row.ave,
+    price: row.price,
+    smdt: row.smdt,
     date: row.date,
     points: Array.isArray(row.points)
-      ? row.points.map((point) => ({
+      ? row.points.slice(-pointLimit).map((point) => ({
           date: point.date,
           signal: point.signal,
           weight: point.weight,
           hold: point.hold,
           percent: point.percent,
+          ave: point.ave,
           price: point.price,
           smdt: point.smdt,
           trade: point.trade,
         }))
       : [],
   }));
+}
+
+function setCachedData(data) {
+  const rows = serializeRows(data, CACHE_POINT_LIMIT);
   const signalByTicker = {};
   for (const row of rows) signalByTicker[row.ticker] = row;
   try {
@@ -177,8 +193,17 @@ function setCachedData(data) {
     );
   } catch (e) {
     try {
-      localStorage.removeItem(CACHE_KEY);
-      localStorage.setItem(CACHE_KEY, JSON.stringify({ rows: [], signalByTicker: {}, updatedAt: data.updatedAt ? data.updatedAt.toISOString() : null }));
+      const fallbackRows = serializeRows(data, 1);
+      const fallbackSignalByTicker = {};
+      for (const row of fallbackRows) fallbackSignalByTicker[row.ticker] = row;
+      localStorage.setItem(
+        CACHE_KEY,
+        JSON.stringify({
+          rows: fallbackRows,
+          signalByTicker: fallbackSignalByTicker,
+          updatedAt: data.updatedAt ? data.updatedAt.toISOString() : null,
+        })
+      );
     } catch (retryError) {
       console.warn("Failed to save StockSignal cache:", retryError);
     }
