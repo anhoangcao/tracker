@@ -17,8 +17,7 @@ const PINNED_KEYS = [
   "Thép",
   "BĐS Dân cư",
   "Xây dựng",
-  "Sản xuất và Khai thác dầu khí",
-  "Sóng Vin",
+  "Sóng ngành Vin",
 ];
 
 const INDUSTRY_ALIAS_GROUPS = [
@@ -84,6 +83,11 @@ function normalizeName(value) {
 function aliasesOfIndustry(name) {
   const normalized = normalizeName(name);
   return INDUSTRY_ALIAS_GROUPS.find((group) => group.some((item) => normalizeName(item) === normalized)) || [name];
+}
+
+function pinnedOrderOfIndustry(name) {
+  const names = aliasesOfIndustry(name).map(normalizeName);
+  return PINNED_KEYS.findIndex((key) => aliasesOfIndustry(key).some((alias) => names.includes(normalizeName(alias))));
 }
 
 function pctPos(date, d0, totalMs) {
@@ -1237,7 +1241,6 @@ function ManageModal({ rows, visibleSet, onClose, onSave }) {
 }
 
 function buildRows({ branches, datesAsc, matrix }) {
-  const pinnedIndex = new Map(PINNED_KEYS.map((key, index) => [key, index]));
   const coreLabels = new Map(CORE_BRANCHES.map((item) => [item.key, item.label]));
 
   return branches
@@ -1247,13 +1250,14 @@ function buildRows({ branches, datesAsc, matrix }) {
         .filter((item) => item.smdt != null && item.smdt >= STRONG_THRESHOLD);
       if (!events.length) return null;
       const last = events[events.length - 1];
-      const pinned = pinnedIndex.has(branch.key);
+      const pinnedOrder = pinnedOrderOfIndustry(branch.key);
+      const pinned = pinnedOrder >= 0;
       return {
         key: branch.key,
         label: branch.key === "BĐS Dân cư" ? "BĐS Dân cư" : coreLabels.get(branch.key) || branch.label || branch.key,
         color: COLORS[index % COLORS.length],
         pinned,
-        pinnedOrder: pinned ? pinnedIndex.get(branch.key) : 999,
+        pinnedOrder: pinned ? pinnedOrder : 999,
         events,
         lastDate: last.date,
         lastSmdt: last.smdt,

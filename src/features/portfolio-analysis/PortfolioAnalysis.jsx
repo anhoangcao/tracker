@@ -151,11 +151,13 @@ function getStockSignalForDate(stockSig, dateValue) {
   const tradePoint = dateValue ? eligible.findLast((point) => toDateInputValue(point.date) === dateValue && (Number(point.trade) === 1 || Number(point.trade) === 2)) : latestHoldPoint;
   const trade = Number.isFinite(Number(tradePoint?.trade)) ? Number(tradePoint.trade) : null;
   const signal = trade === 1 ? "MUA" : trade === 2 ? "BAN" : "Nắm giữ";
-  const hold = Number.isFinite(latestHoldPoint?.hold) ? latestHoldPoint.hold : Number.isFinite(latestHoldPoint?.weight) ? latestHoldPoint.weight : null;
+  const hold = Number.isFinite(latestHoldPoint?.hold)
+    ? latestHoldPoint.hold
+    : Number.isFinite(latestHoldPoint?.weight)
+      ? latestHoldPoint.weight
+      : null;
   const percent = Number.isFinite(tradePoint?.percent) ? tradePoint.percent : null;
-  const weight = trade === 1 && Number.isFinite(hold) && Number.isFinite(percent)
-    ? hold + percent
-    : hold;
+  const weight = Number.isFinite(hold) ? hold : percent;
   return { ...latestHoldPoint, signal, weight, hold, trade, tradePoint };
 }
 

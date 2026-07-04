@@ -15,12 +15,18 @@ import { useTotalTrade } from "../../data/useTotalTrade";
 import { Card, Clink, LiveFooter, Pagination } from "../../components/ui";
 import { PORTFOLIO_MAX_CODES, loadSavedPortfolio, parsePortfolioCodes, savePortfolioState } from "../portfolio-analysis/portfolioState";
 import { isCashFlowCoreIndustry } from "../cash-flow-ticker/cashFlowUtils";
+import CardDoSong from "./CardDoSong";
 
 const SIG_ORDER = ["sn", "si", "so", "st"];
 const CORE_KEYS = new Set(CORE_BRANCHES.map((b) => b.key));
 const CORE_LABELS = new Set(CORE_BRANCHES.flatMap((b) => [b.key, b.label]));
 const TOP_LIMIT = 40;
 const PAGE_SIZE = 8;
+const TOP_STATUS_META = {
+  vm: { label: "Vừa mạnh", color: "var(--G)", icon: "ti-star-filled" },
+  dt: { label: "Duy trì", color: "var(--B)", icon: "ti-circle-filled" },
+  tn: { label: "Tiềm năng", color: "var(--A)", icon: "ti-bulb" },
+};
 const INDUSTRY_ALIAS_GROUPS = [
   ["Môi giới chứng khoán", "Chứng khoán"],
   ["Ngân hàng thương mại truyền thống", "Ngân hàng"],
@@ -30,6 +36,7 @@ const INDUSTRY_ALIAS_GROUPS = [
   ["Xây dựng"],
   ["Sản xuất và Khai thác dầu khí", "Dầu khí"],
 ];
+const WAVE_CORE_BRANCH_NAMES = ["Ngân hàng", "Chứng khoán", "BĐS Dân cư", "Thép", "Xây dựng", "Sóng ngành Vin"];
 const DONUT_COLORS = {
   si: "#0ca30c",
   sn: "#1baf7a",
@@ -160,7 +167,17 @@ function sigLabel(sig) {
 }
 
 function strongStatusLabel(status) {
-  return { vm: "Vừa mạnh", dt: "Duy trì", tn: "Tiềm năng" }[status] || "—";
+  return TOP_STATUS_META[status]?.label || "—";
+}
+
+function TopStatusBadge({ status }) {
+  const meta = TOP_STATUS_META[status] || TOP_STATUS_META.tn;
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 5, minWidth: 72, color: meta.color, fontSize: 10, fontWeight: 800, whiteSpace: "nowrap" }}>
+      <i className={`ti ${meta.icon}`} style={{ fontSize: 11 }} />
+      {meta.label}
+    </span>
+  );
 }
 
 function signalToSig(signal) {
@@ -171,6 +188,11 @@ function signalToSig(signal) {
 
 function isCoreBranchName(name) {
   return aliasesOfIndustry(name).some((alias) => CORE_LABELS.has(alias));
+}
+
+function isWaveCoreBranchName(name) {
+  const coreNames = new Set(WAVE_CORE_BRANCH_NAMES.flatMap((item) => aliasesOfIndustry(item)).map(normalizeIndustryName));
+  return aliasesOfIndustry(name).some((alias) => coreNames.has(normalizeIndustryName(alias)));
 }
 
 function getLatestTrade(totalTrade, ticker) {
@@ -402,6 +424,7 @@ function TopStrongTable({ rows, date, narrow }) {
   const safePage = Math.min(page, totalPages);
   const visible = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
   const displayCount = filter === "all" ? rows.length : filtered.length;
+  const filterLabel = filter === "all" ? "Tất cả" : `Dòng tiền mã: ${sigLabel(filter)}`;
 
   const setNextFilter = (value) => {
     setFilter(value);
@@ -410,15 +433,18 @@ function TopStrongTable({ rows, date, narrow }) {
 
   return (
     <Card noPad style={{ display: "flex", flexDirection: "column", overflow: "hidden" }}>
-      <div style={{ padding: "12px 14px", borderBottom: "0.5px solid var(--bdr)", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 6 }}>
-        <div>
+      <div style={{ padding: "12px 14px", borderBottom: "0.5px solid var(--bdr)", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
+        <div style={{ minWidth: 0, flex: 1 }}>
           <span style={{ fontSize: 12, fontWeight: 750, color: "var(--t1)" }}>Top mã mạnh</span>
-          <span style={{ fontSize: 10, color: "var(--t3)", marginLeft: 6 }}>{fmtNum(displayCount)} mã{date ? ` · ${fmtFull(date)}` : ""}</span>
+          <div style={{ fontSize: 10, color: "var(--t3)", marginTop: 3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            {fmtNum(displayCount)} mã · {filterLabel}{date ? ` · ${fmtFull(date)}` : ""}
+          </div>
         </div>
-        <div style={{ display: "flex", gap: 4 }}>
+        <div style={{ display: "flex", gap: 4, alignItems: "center", flexWrap: "nowrap", justifyContent: "flex-end", flexShrink: 0 }}>
           <ChipButton active={filter === "all"} onClick={() => setNextFilter("all")}>Tất cả</ChipButton>
           <ChipButton active={filter === "sn"} tone="G" onClick={() => setNextFilter("sn")}>Nhen nhóm</ChipButton>
           <ChipButton active={filter === "si"} tone="G" onClick={() => setNextFilter("si")}>Đổ vào</ChipButton>
+          <Clink onClick={() => nav("top-ma-manh")}>Chi tiết ›</Clink>
         </div>
       </div>
       <div style={{ overflowX: "auto" }}>
@@ -437,7 +463,7 @@ function TopStrongTable({ rows, date, narrow }) {
                 <td style={{ padding: "6px 8px", textAlign: "right", fontWeight: 650, color: "var(--t1)", ...mono }}>{row.price ? fmtNum(row.price) : "—"}</td>
                 <td style={{ padding: "6px 8px" }}><SignalPill sig={row.tickerSig} /></td>
                 <td style={{ padding: "6px 8px" }}><SignalPill sig={row.branchSig} /></td>
-                <td style={{ padding: "6px 8px", fontSize: 10, color: row.status === "vm" ? "#9b7cf7" : row.status === "tn" ? "#eda100" : "var(--t3)" }}>{strongStatusLabel(row.status)}</td>
+                <td style={{ padding: "6px 8px" }}><TopStatusBadge status={row.status} /></td>
               </tr>
             ))}
           </tbody>
@@ -456,9 +482,10 @@ function PortfolioBox({ rows }) {
   const saved = useMemo(() => loadSavedPortfolio("STB, BVS, SSI"), []);
   const initialInput = saved.input || saved.analyzedCodes.join(", ") || "STB, BVS, SSI";
   const [input, setInput] = useState(initialInput);
+  const [analyzedCodes, setAnalyzedCodes] = useState(saved.analyzedCodes);
   const picks = useMemo(() => parsePortfolioCodes(input), [input]);
   const rowMap = useMemo(() => new Map(rows.map((row) => [row.ticker, row])), [rows]);
-  const analyzed = picks.map((ticker) => {
+  const analyzed = analyzedCodes.map((ticker) => {
     const row = rowMap.get(ticker);
     const strongStock = (row?.smdt || 0) >= 70;
     const goodFlow = row?.sig === "si" || row?.sig === "sn";
@@ -466,6 +493,8 @@ function PortfolioBox({ rows }) {
     const cat = strongStock && strongBranch ? "dd" : strongStock ? "ds" : strongBranch || goodFlow ? "sd" : "ss";
     return { ticker, cat };
   });
+  const hasAnalysis = analyzedCodes.length > 0;
+  const isDirty = picks.join("|") !== analyzedCodes.join("|");
   const counts = analyzed.reduce((acc, row) => ({ ...acc, [row.cat]: (acc[row.cat] || 0) + 1 }), { dd: 0, ds: 0, sd: 0, ss: 0 });
   const total = Math.max(1, analyzed.length);
   const score = analyzed.length ? Math.round((counts.dd * 100 + counts.ds * 50 + counts.sd * 30) / total) : 0;
@@ -484,21 +513,28 @@ function PortfolioBox({ rows }) {
     { key: "ss", color: "#e34948", label: "Sai sóng - sai ngành" },
   ];
   const updateInput = (value) => {
-    const nextCodes = parsePortfolioCodes(value);
     setInput(value);
-    savePortfolioState(value, nextCodes);
+    savePortfolioState(value, analyzedCodes);
   };
   const analyzePortfolio = () => {
     if (!picks.length) return;
+    setAnalyzedCodes(picks);
     savePortfolioState(input, picks);
+  };
+  const openPortfolioDetail = () => {
+    if (!hasAnalysis) return;
+    savePortfolioState(input, analyzedCodes);
     nav("portfolio-analysis");
   };
 
   return (
     <Card style={{ padding: 14, display: "flex", flexDirection: "column", gap: 10 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <span style={{ fontSize: 12, fontWeight: 750, color: "var(--t1)" }}>Phân tích danh mục</span>
-        <span style={{ fontSize: 10, color: "var(--t3)" }}>tối đa {PORTFOLIO_MAX_CODES} mã</span>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+          <span style={{ fontSize: 12, fontWeight: 750, color: "var(--t1)", whiteSpace: "nowrap" }}>Phân tích danh mục</span>
+          <span style={{ fontSize: 10, color: "var(--t3)", whiteSpace: "nowrap" }}>tối đa {PORTFOLIO_MAX_CODES} mã</span>
+        </div>
+        {hasAnalysis && <Clink onClick={openPortfolioDetail}>Chi tiết ›</Clink>}
       </div>
       <div style={{ display: "flex", gap: 8 }}>
         <input
@@ -518,30 +554,40 @@ function PortfolioBox({ rows }) {
           Phân tích
         </button>
       </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <Donut items={cats.map((cat) => ({ value: counts[cat.key] || 0, color: cat.color }))} size={72} />
-        <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1 }}>
-          {cats.map((cat) => (
-            <div key={cat.key} style={{ display: "flex", alignItems: "center", gap: 7 }}>
-              <span style={{ width: 7, height: 7, borderRadius: 999, background: cat.color }} />
-              <span style={{ flex: 1, minWidth: 0, color: "var(--t2)", fontSize: 10, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{cat.label}</span>
-              <span style={{ color: cat.color, fontSize: 11, fontWeight: 750, whiteSpace: "nowrap", ...mono }}>{counts[cat.key] || 0} ({Math.round(((counts[cat.key] || 0) / total) * 100)}%)</span>
+      {hasAnalysis ? (
+        <>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <Donut items={cats.map((cat) => ({ value: counts[cat.key] || 0, color: cat.color }))} size={72} />
+            <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1 }}>
+              {cats.map((cat) => (
+                <div key={cat.key} style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                  <span style={{ width: 7, height: 7, borderRadius: 999, background: cat.color }} />
+                  <span style={{ flex: 1, minWidth: 0, color: "var(--t2)", fontSize: 10, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{cat.label}</span>
+                  <span style={{ color: cat.color, fontSize: 11, fontWeight: 750, whiteSpace: "nowrap", ...mono }}>{counts[cat.key] || 0} ({Math.round(((counts[cat.key] || 0) / total) * 100)}%)</span>
+                </div>
+              ))}
             </div>
-          ))}
+          </div>
+          <div style={{ display: "flex", gap: 10, alignItems: "center", background: "var(--elev)", borderRadius: 8, padding: "8px 12px" }}>
+            <div>
+              <div style={{ fontSize: 9, color: "var(--t3)", marginBottom: 2 }}>Điểm phù hợp</div>
+              <div style={{ fontSize: 22, fontWeight: 800, color: score >= 70 ? "#0ca30c" : score >= 50 ? "#eda100" : "#e34948", ...mono }}>{score}/100</div>
+              <div style={{ fontSize: 9, color: "var(--t3)" }}>{level}</div>
+            </div>
+            <div style={{ width: 1, height: 38, background: "var(--bdr)" }} />
+            <div style={{ fontSize: 11, color: "var(--t2)", lineHeight: 1.55, flex: 1 }}>
+              <span style={{ fontSize: 9, fontWeight: 750, color: "#9b7cf7" }}>✦ AI </span>
+              {aiMessage}
+              {isDirty && <div style={{ marginTop: 3, color: "var(--A)", fontSize: 10, fontWeight: 750 }}>Danh sách mới chưa phân tích.</div>}
+            </div>
+          </div>
+        </>
+      ) : (
+        <div style={{ minHeight: 132, display: "flex", alignItems: "center", justifyContent: "center", gap: 9, background: "var(--elev)", border: "0.5px solid var(--bdr)", borderRadius: 8, color: "var(--t3)", fontSize: 11, textAlign: "center", padding: "12px 14px" }}>
+          <i className="ti ti-chart-donut" style={{ color: "var(--B)", fontSize: 17 }} />
+          Nhập mã rồi bấm Phân tích để xem kết quả.
         </div>
-      </div>
-      <div style={{ display: "flex", gap: 10, alignItems: "center", background: "var(--elev)", borderRadius: 8, padding: "8px 12px" }}>
-        <div>
-          <div style={{ fontSize: 9, color: "var(--t3)", marginBottom: 2 }}>Điểm phù hợp</div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: score >= 70 ? "#0ca30c" : score >= 50 ? "#eda100" : "#e34948", ...mono }}>{score}/100</div>
-          <div style={{ fontSize: 9, color: "var(--t3)" }}>{level}</div>
-        </div>
-        <div style={{ width: 1, height: 38, background: "var(--bdr)" }} />
-        <div style={{ fontSize: 11, color: "var(--t2)", lineHeight: 1.55, flex: 1 }}>
-          <span style={{ fontSize: 9, fontWeight: 750, color: "#9b7cf7" }}>✦ AI </span>
-          {aiMessage}
-        </div>
-      </div>
+      )}
     </Card>
   );
 }
@@ -608,7 +654,7 @@ function WaveTimeline({ events, recentDates, narrow }) {
       <div style={{ padding: "10px 14px", borderBottom: "0.5px solid var(--bdr)", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 6 }}>
         <div>
           <span style={{ fontSize: 12, fontWeight: 750, color: "var(--t1)" }}>Lộ trình dẫn sóng</span>
-          <span style={{ fontSize: 10, color: "var(--t3)", marginLeft: 8 }}>{recentDates.length ? `${fmtFull(recentDates[0])} → ${fmtFull(recentDates.at(-1))}` : "30 phiên gần nhất"} · data thật</span>
+          <span style={{ fontSize: 10, color: "var(--t3)", marginLeft: 8 }}>{recentDates.length ? `${fmtFull(recentDates[0])} → ${fmtFull(recentDates.at(-1))}` : "30 phiên gần nhất"} </span>
         </div>
         <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
           <ChipButton active={mode === "core"} onClick={() => switchMode("core")}>⭐ Chủ lực</ChipButton>
@@ -669,16 +715,20 @@ function WaveTimeline({ events, recentDates, narrow }) {
   );
 }
 
-function SmdtBarCell({ value, max }) {
+function smdtChipTone(value) {
+  if (value >= 100) return { color: "#0ca30c", bg: "rgba(12,163,12,.14)", border: "rgba(12,163,12,.36)" };
+  if (value >= 70) return { color: "#1baf7a", bg: "rgba(27,175,122,.14)", border: "rgba(27,175,122,.34)" };
+  if (value >= 30) return { color: "#eda100", bg: "rgba(237,161,0,.14)", border: "rgba(237,161,0,.34)" };
+  return { color: "var(--t4)", bg: "var(--elev)", border: "var(--bdr)" };
+}
+
+function SmdtBarCell({ value }) {
   if (!Number.isFinite(value)) return <span style={{ color: "var(--t4)" }}>—</span>;
-  const color = smdtColor(value);
-  const pct = max ? Math.round(Math.max(2, Math.min(100, (value / max) * 100))) : 0;
+  const tone = smdtChipTone(value);
   return (
-    <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-      <span style={{ width: 36, height: 4, background: "var(--elev)", borderRadius: 2, overflow: "hidden", flexShrink: 0 }}>
-        <span style={{ display: "block", width: `${pct}%`, height: "100%", background: color, borderRadius: 2 }} />
-      </span>
-      <span style={{ fontSize: 10, fontWeight: 750, color, minWidth: 32, ...mono }}>{value.toFixed(1)}</span>
+    <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 5, minWidth: 62, padding: "4px 8px", borderRadius: 7, background: tone.bg, border: `0.5px solid ${tone.border}`, color: tone.color, fontSize: 11, fontWeight: 800, whiteSpace: "nowrap", ...mono }}>
+      <span style={{ width: 6, height: 6, borderRadius: "50%", background: tone.color, flexShrink: 0 }} />
+      {value.toFixed(1)}
     </span>
   );
 }
@@ -693,13 +743,13 @@ function PnlCell({ price, ave }) {
 function SignalPortfolio({ rows, date, live }) {
   const [tab, setTab] = useState("MUA");
   const [page, setPage] = useState(1);
-  const buyRows = useMemo(() => rows.filter((row) => row.signal === "MUA" && toNumber(row.weight ?? row.hold) > 0), [rows]);
-  const sellRows = useMemo(() => rows.filter((row) => row.signal === "BAN"), [rows]);
+  const sortByTicker = (items) => [...items].sort((a, b) => a.ticker.localeCompare(b.ticker));
+  const buyRows = useMemo(() => sortByTicker(rows.filter((row) => row.signal === "MUA" && toNumber(row.weight ?? row.hold) > 0)), [rows]);
+  const sellRows = useMemo(() => sortByTicker(rows.filter((row) => row.signal === "BAN")), [rows]);
   const tabRows = tab === "MUA" ? buyRows : sellRows;
   const totalPages = Math.max(1, Math.ceil(tabRows.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
   const visible = tabRows.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
-  const smdtMax = Math.max(1, ...tabRows.map((row) => (Number.isFinite(row.smdt) ? row.smdt : 0)));
 
   const switchTab = (value) => {
     setTab(value);
@@ -711,7 +761,7 @@ function SignalPortfolio({ rows, date, live }) {
       <div style={{ padding: "10px 14px", borderBottom: "0.5px solid var(--bdr)", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 6 }}>
         <div>
           <span style={{ fontSize: 12, fontWeight: 750, color: "var(--t1)" }}>Danh mục đầu tư giả lập</span>
-          <span style={{ fontSize: 10, color: "var(--t3)", marginLeft: 8 }}>{date ? fmtFull(date) : "—"} · <span style={{ color: live ? "#0ca30c" : "var(--t4)" }}>● {live ? "Live" : "Cached"}</span></span>
+          <span style={{ fontSize: 10, color: "var(--t3)", marginLeft: 8 }}>{date ? fmtFull(date) : "—"} </span>
         </div>
         <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
           <ChipButton active={tab === "MUA"} tone="G" onClick={() => switchTab("MUA")}>Mua <span style={{ marginLeft: 3, ...mono }}>{buyRows.length}</span></ChipButton>
@@ -733,7 +783,7 @@ function SignalPortfolio({ rows, date, live }) {
               <tr key={`${row.ticker}-${row.date}`} style={{ borderBottom: "0.5px solid var(--bdrs)" }}>
                 <td style={{ padding: "6px 10px", fontWeight: 800, color: "var(--t1)" }}>{row.ticker}</td>
                 <td style={{ padding: "6px 4px" }}><SignalPill compact sig={row.cashSig || signalToSig(row.signal)} /></td>
-                <td style={{ padding: "6px 8px" }}><SmdtBarCell value={row.smdt} max={smdtMax} /></td>
+                <td style={{ padding: "6px 8px" }}><SmdtBarCell value={row.smdt} /></td>
                 <td style={{ padding: "6px 8px", textAlign: "right", fontWeight: 650, color: "var(--t1)", ...mono }}>{Number.isFinite(row.price) ? fmtNum(row.price) : "—"}</td>
                 <td style={{ padding: "6px 8px", textAlign: "right", color: "var(--t2)", ...mono }}>{Number.isFinite(row.ave) ? fmtNum(row.ave) : "—"}</td>
                 <td style={{ padding: "6px 8px", textAlign: "right" }}><PnlCell price={row.price} ave={row.ave} /></td>
@@ -1060,20 +1110,20 @@ export function ModDashboard() {
         .sort()
         .map((date) => ({ date, value: toNumber(row[date]) }))
         .filter((point) => Number.isFinite(point.value));
-      return { key: branch.key, name: branch.label, isCore: branch.isCore || CORE_KEYS.has(branch.key), points, peak: Math.max(0, ...points.map((p) => p.value)) };
+      return { key: branch.key, name: branch.label, isCore: isWaveCoreBranchName(branch.key) || isWaveCoreBranchName(branch.label), points, peak: Math.max(0, ...points.map((p) => p.value)) };
     }).sort((a, b) => b.peak - a.peak);
   }, [branchCross.branches, branchCross.matrix, waveWindowDates]);
 
   const marketWaveItems = useMemo(() => {
     if (!waveLatest) return [];
     return [
-      { value: waveLatest.waitbuy || 0, color: DONUT_COLORS.waitBuy },
-      { value: waveLatest.buy || 0, color: DONUT_COLORS.buy },
-      { value: waveLatest.waitsell || 0, color: DONUT_COLORS.waitSell },
-      { value: waveLatest.sell || 0, color: DONUT_COLORS.sell },
+      { n: waveLatest.waitbuy || 0, c: DONUT_COLORS.waitBuy },
+      { n: waveLatest.buy || 0, c: DONUT_COLORS.buy },
+      { n: waveLatest.waitsell || 0, c: DONUT_COLORS.waitSell },
+      { n: waveLatest.sell || 0, c: DONUT_COLORS.sell },
     ];
   }, [waveLatest]);
-  const waveTotal = waveLatest?.total ?? marketWaveItems.reduce((sum, item) => sum + item.value, 0);
+  const waveTotal = waveLatest?.total ?? marketWaveItems.reduce((sum, item) => sum + item.n, 0);
 
   const smdtBranchCore = branchSmdtRows.filter((row) => row.isCore).slice(0, 7);
   const smdtBranchOther = branchSmdtRows.filter((row) => !row.isCore).slice(0, 7);
@@ -1086,16 +1136,12 @@ export function ModDashboard() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <div style={{ display: "grid", gridTemplateColumns: narrow ? "1fr" : "repeat(3,minmax(0,1fr))", gap: 14 }}>
-        <DashboardCard onClick={() => nav("do-song")}>
-          <DashHeader title="Dò sóng" meta={waveLatest ? `${fmtNum(waveTotal)} mã · ${Number.isFinite(waveLatest.reliability) ? `${fmtNum(waveLatest.reliability)}%` : "—"}` : "Đang tải..."} action="Chi tiết ›" onClick={() => nav("do-song")} />
-          <Donut items={marketWaveItems} />
-          <DotLegend items={[
-            { label: "Chờ mua", color: DONUT_COLORS.waitBuy },
-            { label: "Mua", color: DONUT_COLORS.buy },
-            { label: "Chờ bán", color: DONUT_COLORS.waitSell },
-            { label: "Bán", color: DONUT_COLORS.sell },
-          ]} />
-        </DashboardCard>
+        <CardDoSong
+          data={marketWaveItems}
+          maCount={waveTotal}
+          reliability={waveLatest?.reliability ?? 0}
+          onDetail={() => nav("do-song")}
+        />
 
         <DashboardCard onClick={() => nav("dong-tien-nganh")}>
           <DashHeader title="Dòng tiền ngành" meta={`${fmtNum(branchCashRows.length)} ngành${cashBranchDate ? ` · ${fmtFull(cashBranchDate)}` : ""}`} action="Chi tiết ›" onClick={() => nav("dong-tien-nganh")} />
