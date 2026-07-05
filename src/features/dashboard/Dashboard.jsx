@@ -368,24 +368,25 @@ function SmdtScoreBadge({ value }) {
 }
 
 function SmdtTabs({ active, onChange }) {
+  const { dark } = useTheme();
   const tabStyle = (selected) => ({
     display: "inline-flex",
     alignItems: "center",
     gap: 5,
     padding: "4px 10px",
     borderRadius: 999,
-    border: selected ? "0.5px solid rgba(80,95,125,.55)" : "0.5px solid transparent",
-    background: selected ? "#101522" : "transparent",
-    color: selected ? "#F4F6FB" : "#64718A",
+    border: selected ? `0.5px solid ${dark ? "rgba(80,95,125,.55)" : "var(--bdr)"}` : "0.5px solid transparent",
+    background: selected ? (dark ? "#101522" : "var(--surf)") : "transparent",
+    color: selected ? "var(--t1)" : "var(--t3)",
     fontSize: 10.5,
     fontWeight: 800,
     cursor: "pointer",
     whiteSpace: "nowrap",
-    boxShadow: selected ? "0 1px 0 rgba(255,255,255,.06) inset, 0 1px 6px rgba(0,0,0,.25)" : "none",
+    boxShadow: selected ? (dark ? "0 1px 0 rgba(255,255,255,.06) inset, 0 1px 6px rgba(0,0,0,.25)" : "0 1px 4px rgba(15,23,42,.08)") : "none",
   });
 
   return (
-    <div style={{ display: "inline-flex", alignItems: "center", gap: 3, padding: 3, borderRadius: 8, background: "#151B2C", border: "0.5px solid rgba(27,32,48,.75)", maxWidth: "100%" }}>
+    <div style={{ display: "inline-flex", alignItems: "center", gap: 3, padding: 3, borderRadius: 8, background: dark ? "#151B2C" : "var(--elev)", border: `0.5px solid ${dark ? "rgba(27,32,48,.75)" : "var(--bdr)"}`, maxWidth: "100%" }}>
       <button type="button" aria-pressed={active === "core"} onClick={(event) => { event.stopPropagation(); onChange("core"); }} style={tabStyle(active === "core")}>
         <span style={{ color: "#F59E0B", fontSize: 10 }}>★</span>
         <span style={{ color: "#F59E0B" }}>Chủ lực</span>
@@ -534,7 +535,7 @@ function TopStrongTable({ rows, date, narrow }) {
             {fmtNum(displayCount)} mã · {filterLabel}{date ? ` · ${fmtFull(date)}` : ""}
           </div>
         </div>
-        <div style={{ display: "flex", gap: 4, alignItems: "center", flexWrap: "nowrap", justifyContent: "flex-end", flexShrink: 0 }}>
+        <div style={{ display: "flex", gap: 4, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end", flexShrink: 0, minWidth: 0 }}>
           <ChipButton active={filter === "all"} onClick={() => setNextFilter("all")}>Tất cả</ChipButton>
           <ChipButton active={filter === "sn"} tone="G" onClick={() => setNextFilter("sn")}>Nhen nhóm</ChipButton>
           <ChipButton active={filter === "si"} tone="G" onClick={() => setNextFilter("si")}>Đổ vào</ChipButton>
@@ -1489,7 +1490,7 @@ export function ModDashboard() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-      <div style={{ display: "grid", gridTemplateColumns: narrow ? "1fr" : "repeat(3,minmax(0,1fr))", gap: 14 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(280px, 100%), 1fr))", gap: 14 }}>
         <CardDoSong
           data={marketWaveItems}
           maCount={waveTotal}
@@ -1530,7 +1531,7 @@ export function ModDashboard() {
         </DashboardCard>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: narrow ? "1fr" : "1fr 1fr", gap: 14 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(440px, 100%), 1fr))", gap: 14 }}>
         <SmdtPreview
           title="SMDT ngành"
           meta={`${fmtNum(branchSmdtRows.length)} ngành${smdtBranchDate ? ` · ${fmtFull(smdtBranchDate)}` : ""}`}
@@ -1553,12 +1554,12 @@ export function ModDashboard() {
         />
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: narrow ? "1fr" : "1fr 1fr", gap: 14 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(440px, 100%), 1fr))", gap: 14 }}>
         <TopStrongTable rows={rankedStrongTickers} date={smdtTickerDate} narrow={narrow} />
         <PortfolioBox rows={rankedTopTickers} />
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: narrow ? "1fr" : "1fr 1fr", gap: 14 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(440px, 100%), 1fr))", gap: 14 }}>
         <WaveTimeline events={waveEvents} recentDates={waveWindowDates} narrow={narrow} />
         <SignalPortfolio rows={stockSignalRows} date={signalLatestDate} live={live} />
       </div>
