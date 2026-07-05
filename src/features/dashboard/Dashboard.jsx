@@ -12,7 +12,7 @@ import { useRealtimeSMDTBranchCrossFeed, useSMDTBranchCross } from "../../data/u
 import { useRealtimeStockSignalFeed, useStockSignal } from "../../data/useStockSignal";
 import { useStockWave, useRealtimeStockWaveFeed } from "../../data/useStockWave";
 import { useTotalTrade } from "../../data/useTotalTrade";
-import { Card, Clink, LiveFooter, Pagination } from "../../components/ui";
+import { Card, Clink, LiveFooter, Loading, Pagination } from "../../components/ui";
 import { PORTFOLIO_MAX_CODES, loadSavedPortfolio, parsePortfolioCodes, savePortfolioState } from "../portfolio-analysis/portfolioState";
 import { isCashFlowCoreIndustry } from "../cash-flow-ticker/cashFlowUtils";
 import CardDoSong from "./CardDoSong";
@@ -236,7 +236,8 @@ function getLatestTrade(totalTrade, ticker) {
   return date ? row[date] : null;
 }
 
-function EmptyHint({ children = "Đang tải dữ liệu..." }) {
+function EmptyHint({ children }) {
+  if (!children) return <Loading label="Đang tải dữ liệu…" rows={2} pillHeight={38} style={{ margin: "4px 0 6px" }} />;
   return <div style={{ padding: 18, textAlign: "center", color: "var(--t3)", fontSize: 11 }}>{children}</div>;
 }
 

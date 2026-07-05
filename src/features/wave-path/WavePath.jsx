@@ -5,6 +5,7 @@ import { CORE_BRANCHES } from "../../data/useSMDT";
 import { useRealtimeSMDTBranchCrossFeed, useRealtimeSMDTTickerCrossFeed, useSMDTBranchCross, useSMDTTickerCross } from "../../data/useSMDTCross";
 import { mono } from "../../styles/tokens";
 import { useTheme } from "../../theme";
+import { Loading } from "../../components/ui";
 
 const STORAGE_KEY = "wave_path_visible_branches_v1";
 const STRONG_THRESHOLD = 70;
@@ -1033,7 +1034,7 @@ function TickerTable({ row, eventDate, tickerData, branchPath, smdtData }) {
   }, [branchPath.tickerToBranch, eventDate, row, t, tickerData.datesAsc, tickerData.matrix, tickerData.tickers]);
 
   if (branchPath.status === "loading" || tickerData.status === "loading") {
-    return <div style={styles.tableNotice}>Đang tải danh sách mã trong ngành...</div>;
+    return <Loading label="Đang tải danh sách mã trong ngành…" compact style={{ marginBottom: 0, padding: "12px 4px" }} />;
   }
 
   if (!rows.length) {
@@ -1371,7 +1372,7 @@ export function ModLoTrinhDanSong() {
     setHighlightDate(null);
   };
 
-  if (loading) return <div style={styles.banner}>Đang tải lộ trình dẫn sóng...</div>;
+  if (loading) return <Loading label="Đang tải lộ trình dẫn sóng…" />;
   if (error) return <div style={styles.banner}>Không tải được dữ liệu SMDT ngành: {smdt.error}</div>;
 
   return (
