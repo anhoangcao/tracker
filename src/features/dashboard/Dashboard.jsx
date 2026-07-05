@@ -23,6 +23,7 @@ const CORE_LABELS = new Set(CORE_BRANCHES.flatMap((b) => [b.key, b.label]));
 const TOP_LIMIT = 40;
 const PAGE_SIZE = 8;
 const SIGNAL_PORTFOLIO_PAGE_SIZE = 5;
+const PORTFOLIO_CHAT_API_URL = import.meta.env.VITE_PORTFOLIO_CHAT_API_URL || "";
 const TOP_STATUS_META = {
   vm: { label: "Vừa mạnh", color: "var(--G)", icon: "ti-star-filled" },
   dt: { label: "Duy trì", color: "var(--B)", icon: "ti-circle-filled" },
@@ -93,6 +94,12 @@ function findLatestValueAtOrBefore(row, datesDesc, dateValue) {
     if (value != null) return value;
   }
   return null;
+}
+
+function apiNumber(value) {
+  if (value === null || value === undefined || value === "") return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
 }
 
 function latestUpdatedAt(...items) {
@@ -587,7 +594,8 @@ function PortfolioMsgText({ text }) {
 }
 
 function PortfolioMsgBubble({ role, text, panel = false }) {
-  const isAi = role === "ai";
+  const isAi = role === "ai" || role === "typing";
+  const isTyping = role === "typing";
   return (
     <div style={{ width: "100%", minWidth: 0, display: "flex", gap: 7, alignItems: "flex-start", justifyContent: isAi ? "flex-start" : "flex-end" }}>
       {isAi && (
@@ -595,7 +603,7 @@ function PortfolioMsgBubble({ role, text, panel = false }) {
           AI
         </span>
       )}
-      <div style={{ maxWidth: panel && isAi ? "calc(100% - 35px)" : isAi ? "82%" : panel ? "86%" : "78%", minWidth: 0, borderRadius: isAi ? "8px 8px 8px 3px" : "8px 8px 3px 8px", padding: panel ? "9px 11px" : "7px 9px", background: isAi ? "var(--elev)" : "var(--Bs)", border: `0.5px solid ${isAi ? "var(--bdr)" : "var(--Bb)"}`, color: isAi ? "var(--t2)" : "var(--t1)", fontSize: panel ? 12 : 11, lineHeight: 1.5, overflowWrap: "anywhere" }}>
+      <div style={{ maxWidth: panel && isAi ? "calc(100% - 35px)" : isAi ? "82%" : panel ? "86%" : "78%", minWidth: 0, borderRadius: isAi ? "8px 8px 8px 3px" : "8px 8px 3px 8px", padding: panel ? "9px 11px" : "7px 9px", background: isAi ? "var(--elev)" : "var(--Bs)", border: `0.5px solid ${isAi ? "var(--bdr)" : "var(--Bb)"}`, color: isAi ? "var(--t2)" : "var(--t1)", fontSize: panel ? 12 : 11, lineHeight: 1.5, overflowWrap: "anywhere", opacity: isTyping ? 0.78 : 1 }}>
         <PortfolioMsgText text={text} />
       </div>
     </div>
@@ -647,7 +655,7 @@ function portfolioAiReply(question, ctx) {
   return portfolioAutoMessage(ctx);
 }
 
-function PortfolioBox({ rows }) {
+function PortfolioBox({ rows, asOfDate }) {
   const narrow = useNarrow();
   const saved = useMemo(() => loadSavedPortfolio("STB, BVS, SSI"), []);
   const initialInput = saved.input || saved.analyzedCodes.join(", ") || "STB, BVS, SSI";
@@ -655,6 +663,8 @@ function PortfolioBox({ rows }) {
   const [analyzedCodes, setAnalyzedCodes] = useState(saved.analyzedCodes);
   const [panelVal, setPanelVal] = useState("");
   const [chatOpen, setChatOpen] = useState(false);
+  const [chatLoading, setChatLoading] = useState(false);
+  const [conversationId, setConversationId] = useState(() => `portfolio-dashboard-${Date.now()}`);
   const [msgs, setMsgs] = useState([
     { role: "ai", text: "Nhập mã và bấm Phân tích, sau đó hỏi tôi về mã đúng sóng, ngành dẫn dắt, mã nên cắt hoặc phân bổ tỷ trọng." },
   ]);
@@ -672,7 +682,9 @@ function PortfolioBox({ rows }) {
       cat,
       industry: row?.industry || "",
       smdt: row?.smdt,
+      smdtPrev: row?.prevSmdt,
       branchSmdt: row?.branchSmdt,
+      branchSmdtPrev: row?.branchSmdtPrev,
       tickerSig: row?.tickerSig || row?.sig,
       branchSig: row?.branchSig,
     };
@@ -684,6 +696,19 @@ function PortfolioBox({ rows }) {
   const score = analyzed.length ? Math.round((counts.dd * 100 + counts.ds * 50 + counts.sd * 30) / total) : 0;
   const level = score >= 70 ? "Tốt" : score >= 50 ? "Trung bình" : "Cần cơ cấu lại";
   const portfolioCtx = useMemo(() => ({ hasAnalysis, analyzed, counts, total, score }), [analyzed, counts, hasAnalysis, score, total]);
+  const portfolioPayload = useMemo(() => ({
+    asOfDate: toDateInputValue(asOfDate) || asOfDate || "",
+    positions: analyzed
+      .filter((row) => Number.isFinite(row.smdt) || Number.isFinite(row.branchSmdt))
+      .map((row) => ({
+        ticker: row.ticker,
+        industry: row.industry || "",
+        smdt: apiNumber(row.smdt),
+        smdtPrev: apiNumber(row.smdtPrev),
+        branchSmdt: apiNumber(row.branchSmdt),
+        branchSmdtPrev: apiNumber(row.branchSmdtPrev),
+      })),
+  }), [analyzed, asOfDate]);
   const aiMessage = hasAnalysis ? portfolioAutoMessage(portfolioCtx) : "";
   const cats = [
     { key: "dd", color: "#0ca30c", label: "Đúng sóng - đúng ngành" },
@@ -719,7 +744,7 @@ function PortfolioBox({ rows }) {
       const goodFlow = row?.sig === "si" || row?.sig === "sn";
       const strongBranch = (row?.branchSmdt || 0) >= 70 || row?.branchSig === "si" || row?.branchSig === "sn";
       const cat = strongStock && strongBranch ? "dd" : strongStock ? "ds" : strongBranch || goodFlow ? "sd" : "ss";
-      return { ticker, cat, industry: row?.industry || "", smdt: row?.smdt, branchSmdt: row?.branchSmdt, tickerSig: row?.tickerSig || row?.sig, branchSig: row?.branchSig };
+      return { ticker, cat, industry: row?.industry || "", smdt: row?.smdt, smdtPrev: row?.prevSmdt, branchSmdt: row?.branchSmdt, branchSmdtPrev: row?.branchSmdtPrev, tickerSig: row?.tickerSig || row?.sig, branchSig: row?.branchSig };
     });
     const nextCounts = nextAnalyzed.reduce((acc, row) => ({ ...acc, [row.cat]: (acc[row.cat] || 0) + 1 }), { dd: 0, ds: 0, sd: 0, ss: 0 });
     const nextTotal = Math.max(1, nextAnalyzed.length);
@@ -731,15 +756,42 @@ function PortfolioBox({ rows }) {
     savePortfolioState(input, analyzedCodes);
     nav("portfolio-analysis");
   };
-  const sendPortfolioMsg = useCallback((text, panel = false) => {
+  const sendPortfolioMsg = useCallback(async (text, panel = false) => {
     const question = text.trim();
-    if (!question) return;
+    if (!question || chatLoading) return;
     if (panel) setPanelVal("");
-    const reply = portfolioAiReply(question, portfolioCtx);
-    setMsgs((prev) => [...prev, { role: "user", text: question }, { role: "ai", text: reply }]);
-  }, [portfolioCtx]);
-  const askPortfolioMsg = useCallback((text) => {
     setChatOpen(true);
+    setChatLoading(true);
+    setMsgs((prev) => [...prev, { role: "user", text: question }, { role: "typing", text: "Đang phân tích dữ liệu danh mục..." }]);
+
+    try {
+      if (!PORTFOLIO_CHAT_API_URL) throw new Error("thiếu VITE_PORTFOLIO_CHAT_API_URL");
+      const response = await fetch(PORTFOLIO_CHAT_API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          question,
+          user_id: "u1",
+          conversation_id: conversationId,
+          portfolio: portfolioPayload,
+        }),
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data = await response.json();
+      if (data?.conversation_id) setConversationId(data.conversation_id);
+      const answer = data?.answer || portfolioAiReply(question, portfolioCtx);
+      setMsgs((prev) => [...prev.filter((msg) => msg.role !== "typing"), { role: "ai", text: answer }]);
+    } catch (error) {
+      const fallback = portfolioAiReply(question, portfolioCtx);
+      setMsgs((prev) => [
+        ...prev.filter((msg) => msg.role !== "typing"),
+        { role: "ai", text: `Chưa gọi được API Chat AI${error?.message ? ` (${error.message})` : ""}. Tạm dùng phân tích nội bộ:\n${fallback}` },
+      ]);
+    } finally {
+      setChatLoading(false);
+    }
+  }, [chatLoading, conversationId, portfolioCtx, portfolioPayload]);
+  const askPortfolioMsg = useCallback((text) => {
     sendPortfolioMsg(text, true);
   }, [sendPortfolioMsg]);
 
@@ -815,9 +867,9 @@ function PortfolioBox({ rows }) {
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-          <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, color: "var(--G)" }}>
-            <span style={{ width: 5, height: 5, borderRadius: 999, background: "var(--G)" }} />
-            Sẵn sàng
+          <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, color: chatLoading ? "var(--A)" : "var(--G)" }}>
+            <span style={{ width: 5, height: 5, borderRadius: 999, background: chatLoading ? "var(--A)" : "var(--G)" }} />
+            {chatLoading ? "Đang hỏi" : "Sẵn sàng"}
           </span>
           <button type="button" onClick={() => setChatOpen(true)} style={{ border: "0.5px solid var(--bdr)", background: "var(--surf)", color: "var(--B)", borderRadius: 7, padding: "4px 8px", fontSize: 10, fontWeight: 750, cursor: "pointer", whiteSpace: "nowrap" }}>
             ↗ Mở rộng
@@ -827,7 +879,7 @@ function PortfolioBox({ rows }) {
 
       <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
         {["Mã nào đúng sóng?", "Ngành nào dẫn dắt?", "Nên cắt mã nào?", "Phân bổ tỷ trọng?"].map((text) => (
-          <button key={text} type="button" onClick={() => askPortfolioMsg(text)} style={{ border: "0.5px solid var(--bdr)", background: "var(--elev)", color: "var(--t2)", borderRadius: 999, padding: "4px 8px", fontSize: 10, fontWeight: 650, cursor: "pointer" }}>
+          <button key={text} type="button" onClick={() => askPortfolioMsg(text)} disabled={chatLoading} style={{ border: "0.5px solid var(--bdr)", background: "var(--elev)", color: "var(--t2)", borderRadius: 999, padding: "4px 8px", fontSize: 10, fontWeight: 650, cursor: chatLoading ? "not-allowed" : "pointer", opacity: chatLoading ? 0.55 : 1 }}>
             {text}
           </button>
         ))}
@@ -888,7 +940,7 @@ function PortfolioBox({ rows }) {
 
           <div style={{ padding: narrow ? "9px 14px" : "10px 16px", display: "flex", gap: 6, flexWrap: "wrap", borderTop: "0.5px solid var(--bdr)", minWidth: 0 }}>
             {["Mã nào đúng sóng đúng ngành?", "Ngành nào đang dẫn dắt?", "Nên cắt mã nào?", "Phân bổ tỷ trọng 3-5-2?", "So sánh các mã?"].map((text) => (
-              <button key={text} type="button" onClick={() => sendPortfolioMsg(text, true)} style={{ border: "0.5px solid var(--bdr)", background: "var(--elev)", color: "var(--t2)", borderRadius: 999, padding: "5px 9px", fontSize: 11, fontWeight: 650, cursor: "pointer" }}>
+              <button key={text} type="button" onClick={() => sendPortfolioMsg(text, true)} disabled={chatLoading} style={{ border: "0.5px solid var(--bdr)", background: "var(--elev)", color: "var(--t2)", borderRadius: 999, padding: "5px 9px", fontSize: 11, fontWeight: 650, cursor: chatLoading ? "not-allowed" : "pointer", opacity: chatLoading ? 0.55 : 1 }}>
                 {text}
               </button>
             ))}
@@ -909,7 +961,7 @@ function PortfolioBox({ rows }) {
               placeholder="Hỏi bất cứ điều gì về danh mục..."
               style={{ flex: 1, minWidth: 0, minHeight: 36, maxHeight: 90, resize: "none", padding: "8px 12px", borderRadius: 8, border: "0.5px solid var(--bdr)", background: "var(--elev)", color: "var(--t1)", fontSize: 12, lineHeight: 1.5, outline: "none", fontFamily: "inherit" }}
             />
-            <button type="button" onClick={() => sendPortfolioMsg(panelVal, true)} style={{ width: 36, height: 36, borderRadius: 8, border: "none", background: "var(--B)", color: "white", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
+            <button type="button" onClick={() => sendPortfolioMsg(panelVal, true)} disabled={chatLoading || !panelVal.trim()} style={{ width: 36, height: 36, borderRadius: 8, border: "none", background: "var(--B)", color: "white", display: "flex", alignItems: "center", justifyContent: "center", cursor: chatLoading || !panelVal.trim() ? "not-allowed" : "pointer", opacity: chatLoading || !panelVal.trim() ? 0.55 : 1, flexShrink: 0 }}>
               ➤
             </button>
           </div>
@@ -1255,6 +1307,9 @@ export function ModDashboard() {
 
   const smdtBranchDate = topDate(smdt.datesAsc);
   const cashBranchDate = topDate(cashBranch.datesAsc);
+  const smdtBranchDatesDesc = useMemo(() => sortDatesDesc(smdt.datesAsc), [smdt.datesAsc]);
+  const smdtBranchDateIndex = useMemo(() => findDateIndex(smdtBranchDatesDesc, toDateInputValue(smdtBranchDate)), [smdtBranchDate, smdtBranchDatesDesc]);
+  const prevSmdtBranchDate = smdtBranchDateIndex >= 0 ? smdtBranchDatesDesc[smdtBranchDateIndex + 1] || "" : "";
   const cashBranchDatesDesc = useMemo(() => sortDatesDesc(cashBranch.datesAsc), [cashBranch.datesAsc]);
   const smdtTickerDate = topDate(smdtTicker.datesAsc);
   const updatedAt = latestUpdatedAt(smdt.updatedAt, cashBranch.updatedAt, smdtTicker.updatedAt, cashTicker.updatedAt, stockSignal.updatedAt, stockWave.updatedAt, branchCross.updatedAt, totalTrade.updatedAt);
@@ -1308,6 +1363,18 @@ export function ModDashboard() {
     }
     return map;
   }, [branchSmdtRows]);
+
+  const branchSmdtPrevByLabel = useMemo(() => {
+    const map = new Map();
+    if (!prevSmdtBranchDate) return map;
+    for (const branch of smdt.branches) {
+      const value = smdt.matrix[branch.key]?.[prevSmdtBranchDate];
+      if (!Number.isFinite(value)) continue;
+      setIndustryLookup(map, branch.key, value);
+      setIndustryLookup(map, branch.label, value);
+    }
+    return map;
+  }, [prevSmdtBranchDate, smdt.branches, smdt.matrix]);
 
   const cashTickerDatesDesc = useMemo(() => sortDatesDesc(cashTicker.buckets.map((bucket) => bucket.date)), [cashTicker.buckets]);
   const activeCashTickerDate = useMemo(() => {
@@ -1393,6 +1460,7 @@ export function ModDashboard() {
       const cash = cashByTicker.get(tk.key);
       const industry = tk.industry;
       const branchSmdt = lookupIndustryValue(branchSmdtByLabel, industry);
+      const branchSmdtPrev = lookupIndustryValue(branchSmdtPrevByLabel, industry);
       const tickerSig = tickerContentToSig(cash?.content || "");
       const branchSig = lookupIndustryValue(branchCashByLabel, industry);
       const signal = stockSignalByTicker.get(tk.key);
@@ -1410,6 +1478,7 @@ export function ModDashboard() {
         prev2Smdt,
         momentum,
         branchSmdt,
+        branchSmdtPrev,
         sig: tickerSig,
         tickerSig,
         branchSig,
@@ -1419,7 +1488,7 @@ export function ModDashboard() {
       }];
     });
     return rows.sort((a, b) => a.ticker.localeCompare(b.ticker));
-  }, [branchCashByLabel, branchSmdtByLabel, cashByTicker, prev2SmdtTickerDate, prevSmdtTickerDate, smdtTicker.matrix, smdtTickerDate, smdtTickerPool, stockSignalByTicker, totalTrade]);
+  }, [branchCashByLabel, branchSmdtByLabel, branchSmdtPrevByLabel, cashByTicker, prev2SmdtTickerDate, prevSmdtTickerDate, smdtTicker.matrix, smdtTickerDate, smdtTickerPool, stockSignalByTicker, totalTrade]);
 
   const rankedTopTickers = useMemo(() => {
     return [...allTopTickers].sort((a, b) => b.score - a.score || b.smdt - a.smdt);
@@ -1557,7 +1626,7 @@ export function ModDashboard() {
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(440px, 100%), 1fr))", gap: 14 }}>
         <TopStrongTable rows={rankedStrongTickers} date={smdtTickerDate} narrow={narrow} />
-        <PortfolioBox rows={rankedTopTickers} />
+        <PortfolioBox rows={rankedTopTickers} asOfDate={smdtTickerDate} />
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(440px, 100%), 1fr))", gap: 14 }}>
