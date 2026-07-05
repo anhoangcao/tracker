@@ -360,7 +360,7 @@ function SmdtScoreBadge({ value }) {
   if (!Number.isFinite(value)) return <span style={{ color: "var(--t4)" }}>—</span>;
   const tone = smdtBadgeTone(value);
   return (
-    <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 58, padding: "4px 8px", borderRadius: 8, border: `0.5px solid ${tone.border}`, background: tone.bg, color: tone.color, fontSize: 11, fontWeight: 800, whiteSpace: "nowrap", ...mono }}>
+    <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 58, height: 25, padding: "0 8px", borderRadius: 8, border: `0.5px solid ${tone.border}`, background: tone.bg, color: tone.color, fontSize: 11, fontWeight: 800, whiteSpace: "nowrap", ...mono }}>
       {value.toFixed(1)}
     </span>
   );
@@ -398,7 +398,7 @@ function SmdtTabs({ active, onChange }) {
 
 function SmdtPreviewSectionLabel({ children }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "8px 0 2px" }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "6px 0 0" }}>
       <span style={{ fontSize: 9, fontWeight: 850, color: "var(--t4)", textTransform: "uppercase", letterSpacing: ".08em", whiteSpace: "nowrap" }}>
         {children}
       </span>
@@ -409,7 +409,7 @@ function SmdtPreviewSectionLabel({ children }) {
 
 function SmdtPreviewLegend() {
   return (
-    <div style={{ display: "flex", gap: "6px 12px", flexWrap: "wrap", paddingTop: 8, marginTop: "auto", borderTop: "0.5px solid var(--bdr)" }}>
+    <div style={{ display: "flex", gap: "6px 12px", flexWrap: "wrap", paddingTop: 7, marginTop: 2, borderTop: "0.5px solid var(--bdr)" }}>
       {[100, 70, 30, -Infinity].map((value) => {
         const tone = smdtBadgeTone(value);
         return (
@@ -426,10 +426,11 @@ function SmdtPreviewLegend() {
 function SmdtPreview({ title, meta, leftTitle, rightTitle, leftRows, rightRows, defaultTab = "core", navId }) {
   const [tab, setTab] = useState(defaultTab);
   const rows = tab === "core" ? leftRows : rightRows;
+  const displayRows = rows.length ? [...rows, ...Array.from({ length: Math.max(0, 10 - rows.length) }, (_, index) => ({ key: `placeholder-${index}`, placeholder: true }))] : [];
   const sectionTitle = tab === "core" ? leftTitle : rightTitle;
 
   return (
-    <Card style={{ padding: "15px 16px", display: "flex", flexDirection: "column", gap: 9, cursor: "pointer", minWidth: 0 }} onClick={() => nav(navId)}>
+    <Card style={{ padding: "15px 16px", display: "flex", flexDirection: "column", gap: 7, cursor: "pointer", minWidth: 0, alignSelf: "start" }} onClick={() => nav(navId)}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
         <div style={{ minWidth: 0 }}>
           <h3 style={{ margin: 0, fontSize: 12, fontWeight: 750, color: "var(--t1)" }}>{title}</h3>
@@ -441,13 +442,17 @@ function SmdtPreview({ title, meta, leftTitle, rightTitle, leftRows, rightRows, 
       <SmdtTabs active={tab} onChange={setTab} />
       <SmdtPreviewSectionLabel>{sectionTitle}</SmdtPreviewSectionLabel>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", columnGap: 18, flex: 1 }}>
-        {rows.length ? rows.map((row) => (
-          <div key={row.key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, minWidth: 0, padding: "4px 0", borderBottom: "0.5px solid var(--bdr)" }}>
-            <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--t1)", fontSize: 11, fontWeight: 700 }}>
-              {row.name}
-            </span>
-            <SmdtScoreBadge value={row.value} />
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", columnGap: 18, alignContent: "start" }}>
+        {displayRows.length ? displayRows.map((row) => (
+          <div key={row.key} aria-hidden={row.placeholder || undefined} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, minWidth: 0, minHeight: 36, padding: "2px 0", borderBottom: `0.5px solid ${row.placeholder ? "transparent" : "var(--bdr)"}` }}>
+            {!row.placeholder && (
+              <>
+                <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--t1)", fontSize: 11, fontWeight: 700 }}>
+                  {row.name}
+                </span>
+                <SmdtScoreBadge value={row.value} />
+              </>
+            )}
           </div>
         )) : (
           <div style={{ gridColumn: "1 / -1" }}><EmptyHint /></div>
@@ -1473,8 +1478,8 @@ export function ModDashboard() {
   }, [waveLatest]);
   const waveTotal = waveLatest?.total ?? marketWaveItems.reduce((sum, item) => sum + item.n, 0);
 
-  const smdtBranchCore = branchSmdtRows.filter((row) => row.isCore).slice(0, 7);
-  const smdtBranchOther = branchSmdtRows.filter((row) => !row.isCore).slice(0, 7);
+  const smdtBranchCore = branchSmdtRows.filter((row) => row.isCore).slice(0, 10);
+  const smdtBranchOther = branchSmdtRows.filter((row) => !row.isCore).slice(0, 10);
   const tickerRows = rankedTopTickers.map((row) => ({ key: row.ticker, name: row.ticker, value: row.smdt, isCore: isCoreBranchName(row.industry) }));
   const sortTickerPreview = (rows) => [...rows].sort((a, b) => b.value - a.value || a.name.localeCompare(b.name));
   const tickerCoreRows = sortTickerPreview(tickerRows.filter((row) => row.isCore)).slice(0, 10);
