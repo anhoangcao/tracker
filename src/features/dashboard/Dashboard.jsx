@@ -978,7 +978,7 @@ function WaveTimeline({ events, recentDates, narrow }) {
   };
 
   return (
-    <Card noPad style={{ overflow: "hidden", display: "flex", flexDirection: "column", height: "100%" }}>
+    <Card noPad style={{ overflow: "hidden", display: "flex", flexDirection: "column" }}>
       <div style={{ padding: "10px 14px", borderBottom: "0.5px solid var(--bdr)", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 6 }}>
         <div>
           <span style={{ fontSize: 12, fontWeight: 750, color: "var(--t1)" }}>Lộ trình dẫn sóng</span>
@@ -1092,7 +1092,7 @@ function SignalPortfolio({ rows, date, live }) {
   };
 
   return (
-    <Card noPad style={{ overflow: "hidden", display: "flex", flexDirection: "column", height: "100%" }}>
+    <Card noPad style={{ overflow: "hidden", display: "flex", flexDirection: "column" }}>
       <div style={{ padding: "10px 14px", borderBottom: "0.5px solid var(--bdr)", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
         <div>
           <span style={{ fontSize: 12, fontWeight: 750, color: "var(--t1)" }}>Danh mục đầu tư giả lập</span>
