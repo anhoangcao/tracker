@@ -30,7 +30,7 @@ export const CORE_BRANCHES = [
   { key: "BĐS Dân cư", label: "Bất động sản" },
   { key: "Thép", label: "Thép" },
   { key: "Xây dựng", label: "Xây dựng" },
-  { key: "Sản xuất và Khai thác dầu khí", label: "Dầu khí" },
+  { key: "Sóng ngành Vin", label: "Sóng Vin" },
 ];
 
 const CORE_KEYS = new Set(CORE_BRANCHES.map((b) => b.key));

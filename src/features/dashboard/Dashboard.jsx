@@ -443,7 +443,7 @@ function SmdtPreview({ title, meta, leftTitle, rightTitle, leftRows, rightRows, 
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", columnGap: 18, flex: 1 }}>
         {rows.length ? rows.map((row) => (
-          <div key={row.key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, minWidth: 0, padding: "6px 0", borderBottom: "0.5px solid var(--bdr)" }}>
+          <div key={row.key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, minWidth: 0, padding: "4px 0", borderBottom: "0.5px solid var(--bdr)" }}>
             <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--t1)", fontSize: 11, fontWeight: 700 }}>
               {row.name}
             </span>
@@ -645,13 +645,11 @@ function PortfolioBox({ rows }) {
   const initialInput = saved.input || saved.analyzedCodes.join(", ") || "STB, BVS, SSI";
   const [input, setInput] = useState(initialInput);
   const [analyzedCodes, setAnalyzedCodes] = useState(saved.analyzedCodes);
-  const [chatVal, setChatVal] = useState("");
   const [panelVal, setPanelVal] = useState("");
   const [chatOpen, setChatOpen] = useState(false);
   const [msgs, setMsgs] = useState([
     { role: "ai", text: "Nhập mã và bấm Phân tích, sau đó hỏi tôi về mã đúng sóng, ngành dẫn dắt, mã nên cắt hoặc phân bổ tỷ trọng." },
   ]);
-  const msgsRef = useRef(null);
   const panelRef = useRef(null);
   const picks = useMemo(() => parsePortfolioCodes(input), [input]);
   const rowMap = useMemo(() => new Map(rows.map((row) => [row.ticker, row])), [rows]);
@@ -685,10 +683,6 @@ function PortfolioBox({ rows }) {
     { key: "sd", color: "#9b7cf7", label: "Đúng ngành - sai sóng" },
     { key: "ss", color: "#e34948", label: "Sai sóng - sai ngành" },
   ];
-
-  useEffect(() => {
-    if (msgsRef.current) msgsRef.current.scrollTop = msgsRef.current.scrollHeight;
-  }, [msgs]);
 
   useEffect(() => {
     if (panelRef.current) panelRef.current.scrollTop = panelRef.current.scrollHeight;
@@ -733,10 +727,13 @@ function PortfolioBox({ rows }) {
     const question = text.trim();
     if (!question) return;
     if (panel) setPanelVal("");
-    else setChatVal("");
     const reply = portfolioAiReply(question, portfolioCtx);
     setMsgs((prev) => [...prev, { role: "user", text: question }, { role: "ai", text: reply }]);
   }, [portfolioCtx]);
+  const askPortfolioMsg = useCallback((text) => {
+    setChatOpen(true);
+    sendPortfolioMsg(text, true);
+  }, [sendPortfolioMsg]);
 
   return (
     <>
@@ -801,7 +798,7 @@ function PortfolioBox({ rows }) {
         </div>
       )}
 
-      <div style={{ margin: "0 -14px", borderTop: "0.5px solid var(--bdr)", borderBottom: "0.5px solid var(--bdr)", background: "var(--elev)", padding: "8px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+      <div style={{ margin: "0 -14px", borderTop: "0.5px solid var(--bdr)", background: "var(--elev)", padding: "8px 14px 7px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
           <span style={{ width: 24, height: 24, borderRadius: 999, background: "var(--Bs)", border: "0.5px solid var(--Bb)", color: "var(--B)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 850, flexShrink: 0 }}>✦</span>
           <div style={{ minWidth: 0 }}>
@@ -820,38 +817,22 @@ function PortfolioBox({ rows }) {
         </div>
       </div>
 
-      <div ref={msgsRef} style={{ minHeight: 92, maxHeight: 132, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8, paddingRight: 2 }}>
-        {msgs.slice(-5).map((msg, index) => (
-          <PortfolioMsgBubble key={`${msg.role}-${index}-${msg.text}`} role={msg.role} text={msg.text} />
-        ))}
-      </div>
-
       <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
         {["Mã nào đúng sóng?", "Ngành nào dẫn dắt?", "Nên cắt mã nào?", "Phân bổ tỷ trọng?"].map((text) => (
-          <button key={text} type="button" onClick={() => sendPortfolioMsg(text)} style={{ border: "0.5px solid var(--bdr)", background: "var(--elev)", color: "var(--t2)", borderRadius: 999, padding: "4px 8px", fontSize: 10, fontWeight: 650, cursor: "pointer" }}>
+          <button key={text} type="button" onClick={() => askPortfolioMsg(text)} style={{ border: "0.5px solid var(--bdr)", background: "var(--elev)", color: "var(--t2)", borderRadius: 999, padding: "4px 8px", fontSize: 10, fontWeight: 650, cursor: "pointer" }}>
             {text}
           </button>
         ))}
       </div>
 
-      <div style={{ display: "flex", gap: 6, alignItems: "flex-end" }}>
-        <textarea
-          rows={1}
-          value={chatVal}
-          onChange={(event) => setChatVal(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" && !event.shiftKey) {
-              event.preventDefault();
-              sendPortfolioMsg(chatVal);
-            }
-          }}
-          placeholder="Hỏi về danh mục, chiến lược..."
-          style={{ flex: 1, minWidth: 0, minHeight: 30, maxHeight: 68, resize: "none", padding: "6px 10px", borderRadius: 7, border: "0.5px solid var(--bdr)", background: "var(--elev)", color: "var(--t1)", fontSize: 11, lineHeight: 1.45, outline: "none", fontFamily: "inherit" }}
-        />
-        <button type="button" onClick={() => sendPortfolioMsg(chatVal)} style={{ width: 30, height: 30, borderRadius: 7, border: "none", background: "var(--B)", color: "white", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
-          ➤
-        </button>
-      </div>
+      <button
+        type="button"
+        onClick={() => setChatOpen(true)}
+        style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, minHeight: 32, padding: "6px 9px 6px 11px", borderRadius: 8, border: "0.5px solid var(--bdr)", background: "var(--elev)", color: "var(--t3)", fontSize: 11, cursor: "text", textAlign: "left" }}
+      >
+        <span>Hỏi AI về danh mục, chiến lược...</span>
+        <span style={{ width: 22, height: 22, borderRadius: 6, background: "var(--B)", color: "white", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>➤</span>
+      </button>
     </Card>
 
     {chatOpen && (
@@ -907,6 +888,7 @@ function PortfolioBox({ rows }) {
 
           <div style={{ display: "flex", gap: 8, padding: "12px 16px", borderTop: "0.5px solid var(--bdr)", alignItems: "flex-end" }}>
             <textarea
+              autoFocus
               rows={1}
               value={panelVal}
               onChange={(event) => setPanelVal(event.target.value)}
