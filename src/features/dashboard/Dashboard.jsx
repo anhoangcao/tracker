@@ -22,6 +22,7 @@ const CORE_KEYS = new Set(CORE_BRANCHES.map((b) => b.key));
 const CORE_LABELS = new Set(CORE_BRANCHES.flatMap((b) => [b.key, b.label]));
 const TOP_LIMIT = 40;
 const PAGE_SIZE = 8;
+const SIGNAL_PORTFOLIO_PAGE_SIZE = 5;
 const TOP_STATUS_META = {
   vm: { label: "Vừa mạnh", color: "var(--G)", icon: "ti-star-filled" },
   dt: { label: "Duy trì", color: "var(--B)", icon: "ti-circle-filled" },
@@ -1071,9 +1072,9 @@ function SignalPortfolio({ rows, date, live }) {
   const buyRows = useMemo(() => sortByTicker(rows.filter((row) => row.signal === "MUA")), [rows]);
   const sellRows = useMemo(() => sortByTicker(rows.filter((row) => row.signal === "BAN")), [rows]);
   const tabRows = tab === "MUA" ? buyRows : sellRows;
-  const totalPages = Math.max(1, Math.ceil(tabRows.length / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(tabRows.length / SIGNAL_PORTFOLIO_PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
-  const visible = tabRows.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+  const visible = tabRows.slice((safePage - 1) * SIGNAL_PORTFOLIO_PAGE_SIZE, safePage * SIGNAL_PORTFOLIO_PAGE_SIZE);
   const cols = [
     { label: "Mã", width: "14%", align: "left" },
     { label: "DT cổ phiếu", width: "19%", align: "center" },
@@ -1089,7 +1090,7 @@ function SignalPortfolio({ rows, date, live }) {
   };
 
   return (
-    <Card noPad style={{ overflow: "hidden", display: "flex", flexDirection: "column" }}>
+    <Card noPad style={{ overflow: "hidden", display: "flex", flexDirection: "column", height: "100%" }}>
       <div style={{ padding: "10px 14px", borderBottom: "0.5px solid var(--bdr)", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
         <div>
           <span style={{ fontSize: 12, fontWeight: 750, color: "var(--t1)" }}>Danh mục đầu tư giả lập</span>
@@ -1129,7 +1130,7 @@ function SignalPortfolio({ rows, date, live }) {
         {!visible.length && <EmptyHint>Chưa có tín hiệu {tab === "MUA" ? "mua" : "bán"}.</EmptyHint>}
       </div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 14px", borderTop: "0.5px solid var(--bdr)", marginTop: "auto", gap: 8 }}>
-        <span style={{ fontSize: 10, color: "var(--t3)" }}>{tabRows.length ? `${(safePage - 1) * PAGE_SIZE + 1}–${Math.min(safePage * PAGE_SIZE, tabRows.length)} / ${tabRows.length} mã` : "0 mã"}</span>
+        <span style={{ fontSize: 10, color: "var(--t3)" }}>{tabRows.length ? `${(safePage - 1) * SIGNAL_PORTFOLIO_PAGE_SIZE + 1}–${Math.min(safePage * SIGNAL_PORTFOLIO_PAGE_SIZE, tabRows.length)} / ${tabRows.length} mã` : "0 mã"}</span>
         <Pagination compact page={safePage} totalPages={totalPages} onChange={setPage} />
       </div>
     </Card>
@@ -1557,7 +1558,7 @@ export function ModDashboard() {
         <PortfolioBox rows={rankedTopTickers} />
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: narrow ? "1fr" : "55fr 45fr", gap: 14 }}>
+      <div style={{ display: "grid", gridTemplateColumns: narrow ? "1fr" : "1fr 1fr", gap: 14 }}>
         <WaveTimeline events={waveEvents} recentDates={waveWindowDates} narrow={narrow} />
         <SignalPortfolio rows={stockSignalRows} date={signalLatestDate} live={live} />
       </div>
