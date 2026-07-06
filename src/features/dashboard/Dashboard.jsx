@@ -617,7 +617,7 @@ function PortfolioMsgBubble({ role, text, panel = false }) {
         </span>
       )}
       <div style={{ maxWidth: panel && isAi ? "calc(100% - 35px)" : isAi ? "82%" : panel ? "86%" : "78%", minWidth: 0, borderRadius: isAi ? "8px 8px 8px 3px" : "8px 8px 3px 8px", padding: panel ? "9px 11px" : "7px 9px", background: isAi ? "var(--elev)" : "var(--Bs)", border: `0.5px solid ${isAi ? "var(--bdr)" : "var(--Bb)"}`, color: isAi ? "var(--t2)" : "var(--t1)", fontSize: panel ? 12 : 11, lineHeight: 1.5, overflowWrap: "anywhere", opacity: isTyping ? 0.78 : 1 }}>
-        <PortfolioMsgText text={text} />
+        {isTyping ? <Loading compact label={text} style={{ marginBottom: 0 }} /> : <PortfolioMsgText text={text} />}
       </div>
     </div>
   );
