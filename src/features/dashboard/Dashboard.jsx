@@ -846,7 +846,7 @@ function PortfolioBox({ rows, asOfDate }) {
             value={input}
             onChange={(e) => updateInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && analyzePortfolio()}
-            style={{ flex: 1, minWidth: 0, padding: "7px 11px", borderRadius: 7, border: "0.5px solid var(--bdr)", background: "var(--elev)", color: "var(--t1)", fontSize: 11, outline: "none" }}
+            style={{ flex: 1, minWidth: 0, padding: "7px 11px", borderRadius: 7, border: "0.5px solid var(--bdr)", background: "var(--elev)", color: "var(--t1)", fontSize: narrow ? 16 : 11, outline: "none" }}
             placeholder="VCG, HHV, BVS, TCB..."
           />
           <button
@@ -995,7 +995,7 @@ function PortfolioBox({ rows, asOfDate }) {
                   }
                 }}
                 placeholder="Hỏi bất cứ điều gì về danh mục..."
-                style={{ flex: 1, minWidth: 0, minHeight: 36, maxHeight: 90, resize: "none", padding: "8px 12px", borderRadius: 8, border: "0.5px solid var(--bdr)", background: "var(--elev)", color: "var(--t1)", fontSize: 12, lineHeight: 1.5, outline: "none", fontFamily: "inherit" }}
+                style={{ flex: 1, minWidth: 0, minHeight: 36, maxHeight: 90, resize: "none", padding: "8px 12px", borderRadius: 8, border: "0.5px solid var(--bdr)", background: "var(--elev)", color: "var(--t1)", fontSize: narrow ? 16 : 12, lineHeight: 1.5, outline: "none", fontFamily: "inherit" }}
               />
               <button type="button" onClick={() => sendPortfolioMsg(panelVal, true)} disabled={chatLoading || !panelVal.trim()} style={{ width: 36, height: 36, borderRadius: 8, border: "none", background: "var(--B)", color: "white", display: "flex", alignItems: "center", justifyContent: "center", cursor: chatLoading || !panelVal.trim() ? "not-allowed" : "pointer", opacity: chatLoading || !panelVal.trim() ? 0.55 : 1, flexShrink: 0 }}>
                 ➤
