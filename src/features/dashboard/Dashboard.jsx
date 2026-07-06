@@ -700,6 +700,36 @@ function PortfolioBox({ rows, asOfDate }) {
   const [msgs, setMsgs] = useState([
     { role: "ai", text: "Nhập mã và bấm Phân tích, sau đó hỏi tôi về mã đúng sóng, ngành dẫn dắt, mã nên cắt hoặc phân bổ tỷ trọng." },
   ]);
+  const [vv, setVv] = useState({ top: 0, height: "100%" });
+
+  useEffect(() => {
+    if (!chatOpen || !narrow) {
+      setVv({ top: 0, height: "100%" });
+      return undefined;
+    }
+
+    const updateViewport = () => {
+      if (window.visualViewport) {
+        setVv({
+          top: window.visualViewport.offsetTop,
+          height: window.visualViewport.height,
+        });
+      }
+    };
+
+    window.visualViewport?.addEventListener("resize", updateViewport);
+    window.visualViewport?.addEventListener("scroll", updateViewport);
+    updateViewport();
+
+    const timer = setTimeout(updateViewport, 100);
+
+    return () => {
+      window.visualViewport?.removeEventListener("resize", updateViewport);
+      window.visualViewport?.removeEventListener("scroll", updateViewport);
+      clearTimeout(timer);
+    };
+  }, [chatOpen, narrow]);
+
   const panelRef = useRef(null);
   const picks = useMemo(() => parsePortfolioCodes(input), [input]);
   const rowMap = useMemo(() => new Map(rows.map((row) => [row.ticker, row])), [rows]);
@@ -934,7 +964,24 @@ function PortfolioBox({ rows, asOfDate }) {
       {chatOpen && (
         <>
           <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.52)", backdropFilter: "blur(2px)", zIndex: 900 }} onClick={() => setChatOpen(false)} />
-          <aside style={{ position: "fixed", top: 0, right: 0, bottom: 0, width: narrow ? "100vw" : "min(460px,96vw)", maxWidth: "100vw", boxSizing: "border-box", overflow: "hidden", overscrollBehavior: "contain", background: "var(--surf)", borderLeft: narrow ? "none" : "0.5px solid var(--bdr)", zIndex: 901, display: "flex", flexDirection: "column", boxShadow: narrow ? "none" : "-24px 0 70px rgba(0,0,0,.35)" }}>
+          <aside style={{
+            position: "fixed",
+            top: narrow ? vv.top : 0,
+            height: narrow ? vv.height : "100%",
+            right: 0,
+            bottom: narrow ? undefined : 0,
+            width: narrow ? "100vw" : "min(460px,96vw)",
+            maxWidth: "100vw",
+            boxSizing: "border-box",
+            overflow: "hidden",
+            overscrollBehavior: "contain",
+            background: "var(--surf)",
+            borderLeft: narrow ? "none" : "0.5px solid var(--bdr)",
+            zIndex: 901,
+            display: "flex",
+            flexDirection: "column",
+            boxShadow: narrow ? "none" : "-24px 0 70px rgba(0,0,0,.35)"
+          }}>
             <div style={{ padding: narrow ? "12px 14px" : "14px 16px", borderBottom: "0.5px solid var(--bdr)", background: "var(--elev)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, minWidth: 0 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
                 <span style={{ width: 32, height: 32, borderRadius: 999, background: "var(--Bs)", border: "0.5px solid var(--Bb)", color: "var(--B)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 850, flexShrink: 0 }}>✦</span>
