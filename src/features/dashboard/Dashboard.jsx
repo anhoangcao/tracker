@@ -390,19 +390,19 @@ function SmdtTabs({ active, onChange }) {
   const tabStyle = (selected, tone = "neutral") => {
     const purple = tone === "purple";
     return {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 5,
-    padding: "4px 10px",
-    borderRadius: 999,
-    border: selected ? `0.5px solid ${purple ? "var(--B)" : dark ? "rgba(80,95,125,.55)" : "var(--bdr)"}` : "0.5px solid transparent",
-    background: selected ? (purple ? "rgba(124,58,237,.12)" : dark ? "#101522" : "var(--surf)") : "transparent",
-    color: selected ? (purple ? "var(--B)" : "var(--t1)") : "var(--t3)",
-    fontSize: 10.5,
-    fontWeight: 800,
-    cursor: "pointer",
-    whiteSpace: "nowrap",
-    boxShadow: selected ? (dark ? "0 1px 0 rgba(255,255,255,.06) inset, 0 1px 6px rgba(0,0,0,.25)" : "0 1px 4px rgba(15,23,42,.08)") : "none",
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 5,
+      padding: "4px 10px",
+      borderRadius: 999,
+      border: selected ? `0.5px solid ${purple ? "var(--B)" : dark ? "rgba(80,95,125,.55)" : "var(--bdr)"}` : "0.5px solid transparent",
+      background: selected ? (purple ? "rgba(124,58,237,.12)" : dark ? "#101522" : "var(--surf)") : "transparent",
+      color: selected ? (purple ? "var(--B)" : "var(--t1)") : "var(--t3)",
+      fontSize: 10.5,
+      fontWeight: 800,
+      cursor: "pointer",
+      whiteSpace: "nowrap",
+      boxShadow: selected ? (dark ? "0 1px 0 rgba(255,255,255,.06) inset, 0 1px 6px rgba(0,0,0,.25)" : "0 1px 4px rgba(15,23,42,.08)") : "none",
     };
   };
 
@@ -934,7 +934,7 @@ function PortfolioBox({ rows, asOfDate }) {
       {chatOpen && (
         <>
           <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.52)", backdropFilter: "blur(2px)", zIndex: 900 }} onClick={() => setChatOpen(false)} />
-          <aside style={{ position: "fixed", top: 0, right: 0, bottom: 0, width: narrow ? "100vw" : "min(460px,96vw)", maxWidth: "100vw", boxSizing: "border-box", overflowX: "hidden", background: "var(--surf)", borderLeft: narrow ? "none" : "0.5px solid var(--bdr)", zIndex: 901, display: "flex", flexDirection: "column", boxShadow: narrow ? "none" : "-24px 0 70px rgba(0,0,0,.35)" }}>
+          <aside style={{ position: "fixed", top: 0, right: 0, bottom: 0, width: narrow ? "100vw" : "min(460px,96vw)", maxWidth: "100vw", boxSizing: "border-box", overflow: "hidden", overscrollBehavior: "contain", background: "var(--surf)", borderLeft: narrow ? "none" : "0.5px solid var(--bdr)", zIndex: 901, display: "flex", flexDirection: "column", boxShadow: narrow ? "none" : "-24px 0 70px rgba(0,0,0,.35)" }}>
             <div style={{ padding: narrow ? "12px 14px" : "14px 16px", borderBottom: "0.5px solid var(--bdr)", background: "var(--elev)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, minWidth: 0 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
                 <span style={{ width: 32, height: 32, borderRadius: 999, background: "var(--Bs)", border: "0.5px solid var(--Bb)", color: "var(--B)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 850, flexShrink: 0 }}>✦</span>
@@ -968,7 +968,7 @@ function PortfolioBox({ rows, asOfDate }) {
               </div>
             )}
 
-            <div ref={panelRef} style={{ flex: 1, minWidth: 0, overflowY: "auto", overflowX: "hidden", display: "flex", flexDirection: "column", gap: 10, padding: narrow ? "12px 14px" : "14px 16px" }}>
+            <div ref={panelRef} style={{ flex: 1, minWidth: 0, minHeight: 0, overflowY: "auto", overflowX: "hidden", display: "flex", flexDirection: "column", gap: 10, padding: narrow ? "12px 14px" : "14px 16px", overscrollBehavior: "contain" }}>
               {msgs.map((msg, index) => (
                 <PortfolioMsgBubble key={`panel-${msg.role}-${index}-${msg.text}`} role={msg.role} text={msg.text} panel />
               ))}
@@ -982,7 +982,7 @@ function PortfolioBox({ rows, asOfDate }) {
               ))}
             </div>
 
-            <div style={{ display: "flex", gap: 8, padding: narrow ? "10px 14px calc(10px + env(safe-area-inset-bottom))" : "12px 16px", borderTop: "0.5px solid var(--bdr)", alignItems: "flex-end", minWidth: 0 }}>
+            <div style={{ display: "flex", gap: 8, padding: narrow ? "10px 14px calc(10px + env(safe-area-inset-bottom, 0px))" : "12px 16px", borderTop: "0.5px solid var(--bdr)", alignItems: "flex-end", minWidth: 0 }}>
               <textarea
                 autoFocus
                 rows={1}
