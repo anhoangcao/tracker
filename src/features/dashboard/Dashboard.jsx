@@ -429,11 +429,10 @@ function SmdtTabs({ active, onChange }) {
 
 function SmdtPreviewSectionLabel({ children }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "6px 0 0" }}>
+    <div style={{ display: "flex", alignItems: "center", margin: "6px 0 0" }}>
       <span style={{ fontSize: 9, fontWeight: 850, color: "var(--t4)", textTransform: "uppercase", letterSpacing: ".08em", whiteSpace: "nowrap" }}>
         {children}
       </span>
-      <div style={{ flex: 1, height: 1, background: "var(--bdr)" }} />
     </div>
   );
 }
