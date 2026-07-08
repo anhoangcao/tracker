@@ -17,6 +17,7 @@ import { PORTFOLIO_MAX_CODES, loadSavedPortfolio, parsePortfolioCodes, savePortf
 import { evaluateFourKey, fallbackEvalKey, scorePortfolio4Key, seriesFromMatrix } from "../portfolio-analysis/stock4KeyEvaluator";
 import { isCashFlowCoreIndustry } from "../cash-flow-ticker/cashFlowUtils";
 import CardDoSong from "./CardDoSong";
+import "./wave-detector-donut.css";
 
 const SIG_ORDER = ["sn", "si", "so", "st"];
 const CORE_KEYS = new Set(CORE_BRANCHES.map((b) => b.key));
@@ -330,21 +331,37 @@ function Donut({ items, size = 180, badges = true }) {
   );
 }
 
-function SplitDonuts({ leftTitle, rightTitle, leftItems, rightItems }) {
+function DonutLoading({ size = 180 }) {
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", width: "100%", gap: 8 }}>
-      <MiniDonut title={leftTitle} items={leftItems} />
-      <div style={{ width: 1, background: "var(--bdr)", height: 100 }} />
-      <MiniDonut title={rightTitle} items={rightItems} />
+    <div
+      className="wtds-dashboard-donut-loading"
+      aria-label="Đang tải dữ liệu"
+      role="status"
+      style={{ "--wtds-donut-size": `${size}px` }}
+    >
+      <div className="wtds-donut-sk wtds-sk" />
+      <div className="wtds-donut-center">
+        <span className="wtds-sk wtds-sk-pill wtds-center-value-sk" />
+      </div>
     </div>
   );
 }
 
-function MiniDonut({ title, items }) {
+function SplitDonuts({ leftTitle, rightTitle, leftItems, rightItems, loading = false }) {
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", width: "100%", gap: 8 }}>
+      <MiniDonut title={leftTitle} items={leftItems} loading={loading} />
+      <div style={{ width: 1, background: "var(--bdr)", height: 100 }} />
+      <MiniDonut title={rightTitle} items={rightItems} loading={loading} />
+    </div>
+  );
+}
+
+function MiniDonut({ title, items, loading = false }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, minWidth: 0 }}>
       <div style={{ fontSize: 9, fontWeight: 700, color: "var(--t3)" }}>{title}</div>
-      <Donut items={items} size={130} />
+      {loading ? <DonutLoading size={130} /> : <Donut items={items} size={130} />}
     </div>
   );
 }
@@ -1706,6 +1723,9 @@ export function ModDashboard() {
   const tickerCoreRows = sortTickerPreview(tickerRows.filter((row) => row.isCore)).slice(0, 10);
   const tickerOtherRows = sortTickerPreview(tickerRows.filter((row) => !row.isCore)).slice(0, 10);
   const signalLatestDate = latestStockSignalDate || stockSignalRows.find((row) => row.date)?.date || activeCashTickerDate;
+  const waveCircleLoading = stockWave.status === "loading" && !waveLatest;
+  const branchCashLoading = cashBranch.status === "loading" && !branchCashRows.length;
+  const tickerCashLoading = cashTicker.status === "loading" && !cashTickerRows.length;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -1715,6 +1735,7 @@ export function ModDashboard() {
           maCount={waveTotal}
           reliability={waveLatest?.reliability ?? 0}
           onDetail={() => nav("do-song")}
+          loading={waveCircleLoading}
         />
 
         <DashboardCard onClick={() => nav("dong-tien-nganh")}>
@@ -1724,6 +1745,7 @@ export function ModDashboard() {
             rightTitle="Ngành phụ"
             leftItems={SIG_ORDER.map((sig) => ({ value: branchCashCounts.core[sig], color: DONUT_COLORS[sig] }))}
             rightItems={SIG_ORDER.map((sig) => ({ value: branchCashCounts.other[sig], color: DONUT_COLORS[sig] }))}
+            loading={branchCashLoading}
           />
           <DotLegend square items={[
             { label: "Nhen nhóm", color: DONUT_COLORS.sn },
@@ -1740,6 +1762,7 @@ export function ModDashboard() {
             rightTitle="Phụ"
             leftItems={SIG_ORDER.map((sig) => ({ value: cashTickerCounts.core[sig], color: DONUT_COLORS[sig] }))}
             rightItems={SIG_ORDER.map((sig) => ({ value: cashTickerCounts.other[sig], color: DONUT_COLORS[sig] }))}
+            loading={tickerCashLoading}
           />
           <DotLegend square items={[
             { label: "Nhen nhóm", color: DONUT_COLORS.sn },
