@@ -779,13 +779,17 @@ function PortfolioBox({ rows, asOfDate }) {
 
     let raf = 0;
     let settleTimer = 0;
-    const fullHeight = node.offsetHeight || viewport.height;
     const settled = { padding: 0 };
 
+    // Ghim panel bám theo mép trên của visual viewport: iOS có pan đi đâu thì
+    // panel trượt theo đúng từng frame (compositor) → nhìn bằng mắt panel đứng yên.
+    const pin = () => {
+      node.style.transform = viewport.offsetTop ? `translateY(${viewport.offsetTop}px)` : "";
+    };
+
     const applySettled = () => {
-      // Hủy pan tự động của iOS (dịch visual viewport khi ô nhập bị che)
-      window.scrollTo(0, 0);
-      const overlap = Math.max(0, Math.round(fullHeight - viewport.height - viewport.offsetTop));
+      pin();
+      const overlap = Math.max(0, Math.round(node.offsetHeight - viewport.height));
       settled.padding = overlap;
       node.style.paddingBottom = overlap ? `${overlap}px` : "";
       if (composerRef.current) composerRef.current.style.transform = "";
@@ -794,9 +798,10 @@ function PortfolioBox({ rows, asOfDate }) {
 
     const track = () => {
       raf = 0;
+      pin();
       const composer = composerRef.current;
       if (composer) {
-        const delta = (viewport.offsetTop + viewport.height) - (fullHeight - settled.padding);
+        const delta = Math.round(viewport.height - (node.offsetHeight - settled.padding));
         composer.style.transform = delta ? `translateY(${delta}px)` : "";
       }
       clearTimeout(settleTimer);
@@ -805,6 +810,10 @@ function PortfolioBox({ rows, asOfDate }) {
     const schedule = () => {
       if (!raf) raf = requestAnimationFrame(track);
     };
+
+    const html = document.documentElement;
+    const prevOverscroll = html.style.overscrollBehavior;
+    html.style.overscrollBehavior = "none";
 
     viewport.addEventListener("resize", schedule);
     viewport.addEventListener("scroll", schedule);
@@ -815,7 +824,9 @@ function PortfolioBox({ rows, asOfDate }) {
       viewport.removeEventListener("scroll", schedule);
       if (raf) cancelAnimationFrame(raf);
       clearTimeout(settleTimer);
+      html.style.overscrollBehavior = prevOverscroll;
       node.style.paddingBottom = "";
+      node.style.transform = "";
       if (composerRef.current) composerRef.current.style.transform = "";
     };
   }, [chatOpen, narrow]);
@@ -1093,6 +1104,7 @@ function PortfolioBox({ rows, asOfDate }) {
             zIndex: 901,
             display: "flex",
             flexDirection: "column",
+            willChange: narrow ? "transform" : undefined,
             boxShadow: narrow ? "none" : "-24px 0 70px rgba(0,0,0,.35)"
           }}>
             <div style={{ padding: narrow ? "12px 14px" : "14px 16px", borderBottom: "0.5px solid var(--bdr)", background: "var(--elev)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, minWidth: 0 }}>
