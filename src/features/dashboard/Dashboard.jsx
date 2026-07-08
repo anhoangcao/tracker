@@ -766,6 +766,20 @@ function PortfolioBox({ rows, asOfDate }) {
   ]);
   const asideRef = useRef(null);
   const composerRef = useRef(null);
+  const keyboardPadRef = useRef(0); // padding đang áp dụng (đồng bộ giữa focus handler và effect)
+  const keyboardHeightRef = useRef(0); // chiều cao bàn phím học được từ lần mở trước
+
+  // Nâng sẵn ô nhập lên đúng chiều cao bàn phím NGAY lúc chạm (trước khi bàn phím
+  // bật) để iOS thấy ô nhập không bị che → không tự scroll trang → header đứng yên.
+  // Composer được transform xuống lại vị trí cũ rồi trượt lên theo bàn phím.
+  const handleComposerFocus = () => {
+    if (!narrow) return;
+    const pad = keyboardHeightRef.current;
+    keyboardPadRef.current = pad;
+    if (asideRef.current) asideRef.current.style.paddingBottom = pad ? `${pad}px` : "";
+    if (composerRef.current) composerRef.current.style.transform = pad ? `translateY(${pad}px)` : "";
+    if (panelRef.current) panelRef.current.scrollTop = panelRef.current.scrollHeight;
+  };
 
   // iOS: panel đứng yên tuyệt đối (không transform, không đổi height) để header
   // không bao giờ nhảy. Khi bàn phím trượt, chỉ cụm chips + ô nhập bám theo bằng
@@ -779,23 +793,24 @@ function PortfolioBox({ rows, asOfDate }) {
 
     let raf = 0;
     let settleTimer = 0;
-    const settled = { padding: 0 };
 
-    // Không dịch chuyển panel: iOS/webview đã tự giữ phần tử fixed dính theo
-    // visual viewport khi bàn phím mở — chỉ co vùng tin nhắn bằng paddingBottom.
+    // Không dịch chuyển panel: chỉ co vùng tin nhắn bằng paddingBottom khi bàn
+    // phím đã yên, và hoàn tác cú scroll tự động của iOS nếu có.
     const applySettled = () => {
       const overlap = Math.max(0, Math.round(node.offsetHeight - viewport.height));
-      settled.padding = overlap;
+      keyboardPadRef.current = overlap;
+      if (overlap > 0) keyboardHeightRef.current = overlap;
       node.style.paddingBottom = overlap ? `${overlap}px` : "";
       if (composerRef.current) composerRef.current.style.transform = "";
       if (panelRef.current) panelRef.current.scrollTop = panelRef.current.scrollHeight;
+      window.scrollTo(0, 0);
     };
 
     const track = () => {
       raf = 0;
       const composer = composerRef.current;
       if (composer) {
-        const delta = Math.round(viewport.height - (node.offsetHeight - settled.padding));
+        const delta = Math.round(viewport.height - (node.offsetHeight - keyboardPadRef.current));
         composer.style.transform = delta ? `translateY(${delta}px)` : "";
       }
       clearTimeout(settleTimer);
@@ -1153,6 +1168,7 @@ function PortfolioBox({ rows, asOfDate }) {
                   autoFocus={!narrow}
                   rows={1}
                   value={panelVal}
+                  onFocus={handleComposerFocus}
                   onChange={(event) => setPanelVal(event.target.value)}
                   onKeyDown={(event) => {
                     if (event.key === "Enter" && !event.shiftKey) {
