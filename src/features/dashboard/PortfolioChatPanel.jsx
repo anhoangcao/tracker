@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { mono } from "../../styles/tokens";
 
 export function PortfolioAiLoadingStyles() {
@@ -149,7 +150,10 @@ export default function PortfolioChatPanel({ open, narrow, onClose, msgs, loadin
 
   if (!open) return null;
 
-  return (
+  // Portal ra document.body: panel nằm ngoài container cuộn của MobileDashboard
+  // nên chạm/cuộn trên panel không thể lan xuống Dashboard phía sau (body vốn
+  // overflow hidden).
+  return createPortal(
     <>
       <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.52)", backdropFilter: narrow ? undefined : "blur(2px)", zIndex: 900, touchAction: "none" }} onClick={onClose} />
       <aside ref={asideRef} style={{
@@ -240,6 +244,7 @@ export default function PortfolioChatPanel({ open, narrow, onClose, msgs, loadin
           </div>
         </div>
       </aside>
-    </>
+    </>,
+    document.body
   );
 }
