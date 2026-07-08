@@ -17,6 +17,7 @@ import { PORTFOLIO_MAX_CODES, loadSavedPortfolio, parsePortfolioCodes, savePortf
 import { evaluateFourKey, fallbackEvalKey, scorePortfolio4Key, seriesFromMatrix } from "../portfolio-analysis/stock4KeyEvaluator";
 import { isCashFlowCoreIndustry } from "../cash-flow-ticker/cashFlowUtils";
 import CardDoSong from "./CardDoSong";
+import PortfolioChatPanel, { PortfolioAiLoadingStyles } from "./PortfolioChatPanel";
 import "./wave-detector-donut.css";
 
 const SIG_ORDER = ["sn", "si", "so", "st"];
@@ -619,74 +620,6 @@ function TopStrongTable({ rows, date, narrow }) {
   );
 }
 
-function PortfolioMsgText({ text }) {
-  return (
-    <>
-      {String(text || "").split("\n").map((line, index) => (
-        <span key={`${line}-${index}`}>
-          {line}
-          {index < String(text || "").split("\n").length - 1 && <br />}
-        </span>
-      ))}
-    </>
-  );
-}
-
-function PortfolioAiLoadingStyles() {
-  return (
-    <style>
-      {`
-        @keyframes portfolio-ai-typing-bounce {
-          0%, 60%, 100% { transform: translateY(0); opacity: .55; }
-          30% { transform: translateY(-4px); opacity: 1; }
-        }
-        @keyframes portfolio-ai-status-pulse {
-          0%, 100% { opacity: 1; transform: scale(1); }
-          50% { opacity: .42; transform: scale(.78); }
-        }
-      `}
-    </style>
-  );
-}
-
-function PortfolioTypingDots() {
-  return (
-    <div aria-label="AI đang trả lời" role="status" style={{ display: "inline-flex", alignItems: "center", gap: 4, height: 12 }}>
-      {[0, 1, 2].map((index) => (
-        <span
-          key={index}
-          style={{
-            width: 4,
-            height: 4,
-            borderRadius: 999,
-            background: "var(--t3)",
-            display: "inline-block",
-            animation: "portfolio-ai-typing-bounce .9s infinite",
-            animationDelay: `${index * 0.15}s`,
-          }}
-        />
-      ))}
-    </div>
-  );
-}
-
-function PortfolioMsgBubble({ role, text, panel = false }) {
-  const isAi = role === "ai" || role === "typing";
-  const isTyping = role === "typing";
-  return (
-    <div style={{ width: "100%", minWidth: 0, display: "flex", gap: 7, alignItems: "flex-start", justifyContent: isAi ? "flex-start" : "flex-end" }}>
-      {isAi && (
-        <span style={{ width: panel ? 28 : 22, height: panel ? 28 : 22, borderRadius: 999, background: "var(--Bs)", border: "0.5px solid var(--Bb)", color: "var(--B)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: panel ? 12 : 10, fontWeight: 850, flexShrink: 0 }}>
-          AI
-        </span>
-      )}
-      <div style={{ maxWidth: panel && isAi ? "calc(100% - 35px)" : isAi ? "82%" : panel ? "86%" : "78%", minWidth: 0, borderRadius: isAi ? "3px 8px 8px 8px" : "8px 3px 8px 8px", padding: isTyping ? (panel ? "7px 11px" : "5px 10px") : panel ? "9px 11px" : "7px 9px", background: isAi ? "var(--elev)" : "var(--Bs)", border: `0.5px solid ${isAi ? "var(--bdr)" : "var(--Bb)"}`, color: isAi ? "var(--t1)" : "var(--t1)", fontSize: panel ? 12 : 11, lineHeight: 1.5, overflowWrap: "anywhere" }}>
-        {isTyping ? <PortfolioTypingDots /> : <PortfolioMsgText text={text} />}
-      </div>
-    </div>
-  );
-}
-
 function portfolioAutoMessage({ score, counts, total, analyzed }) {
   const good = analyzed.filter((row) => row.cat === "dd").map((row) => row.ticker).slice(0, 3).join(", ");
   const weak = analyzed.filter((row) => row.cat === "ss").map((row) => row.ticker).slice(0, 2).join(", ");
@@ -764,104 +697,6 @@ function PortfolioBox({ rows, asOfDate }) {
   const [msgs, setMsgs] = useState([
     { role: "ai", text: "Nhập mã và bấm Phân tích, sau đó hỏi tôi về mã đúng sóng, ngành dẫn dắt, mã nên cắt hoặc phân bổ tỷ trọng." },
   ]);
-  const asideRef = useRef(null);
-  const composerRef = useRef(null);
-  const keyboardPadRef = useRef(0); // padding đang áp dụng (đồng bộ giữa focus handler và effect)
-  const keyboardHeightRef = useRef(0); // chiều cao bàn phím học được từ lần mở trước
-
-  // Nâng sẵn ô nhập lên đúng chiều cao bàn phím NGAY lúc chạm (trước khi bàn phím
-  // bật) để iOS thấy ô nhập không bị che → không tự scroll trang → header đứng yên.
-  // Composer được transform xuống lại vị trí cũ rồi trượt lên theo bàn phím.
-  const handleComposerFocus = () => {
-    if (!narrow) return;
-    const pad = keyboardHeightRef.current;
-    keyboardPadRef.current = pad;
-    if (asideRef.current) asideRef.current.style.paddingBottom = pad ? `${pad}px` : "";
-    if (composerRef.current) composerRef.current.style.transform = pad ? `translateY(${pad}px)` : "";
-    if (panelRef.current) panelRef.current.scrollTop = panelRef.current.scrollHeight;
-  };
-
-  // iOS: panel đứng yên tuyệt đối (không transform, không đổi height) để header
-  // không bao giờ nhảy. Khi bàn phím trượt, chỉ cụm chips + ô nhập bám theo bằng
-  // transform (compositor, không reflow); khi bàn phím dừng mới co vùng tin nhắn
-  // một lần bằng paddingBottom.
-  useEffect(() => {
-    if (!chatOpen || !narrow) return undefined;
-    const viewport = window.visualViewport;
-    const node = asideRef.current;
-    if (!viewport || !node) return undefined;
-
-    let raf = 0;
-    let settleTimer = 0;
-
-    // Không dịch chuyển panel: chỉ co vùng tin nhắn bằng paddingBottom khi bàn
-    // phím đã yên, và hoàn tác cú scroll tự động của iOS nếu có.
-    const applySettled = () => {
-      const overlap = Math.max(0, Math.round(node.offsetHeight - viewport.height));
-      keyboardPadRef.current = overlap;
-      if (overlap > 0) keyboardHeightRef.current = overlap;
-      node.style.paddingBottom = overlap ? `${overlap}px` : "";
-      if (composerRef.current) composerRef.current.style.transform = "";
-      if (panelRef.current) panelRef.current.scrollTop = panelRef.current.scrollHeight;
-      window.scrollTo(0, 0);
-    };
-
-    const track = () => {
-      raf = 0;
-      const composer = composerRef.current;
-      if (composer) {
-        const delta = Math.round(viewport.height - (node.offsetHeight - keyboardPadRef.current));
-        composer.style.transform = delta ? `translateY(${delta}px)` : "";
-      }
-      clearTimeout(settleTimer);
-      settleTimer = setTimeout(applySettled, 120);
-    };
-    const schedule = () => {
-      if (!raf) raf = requestAnimationFrame(track);
-    };
-
-    const html = document.documentElement;
-    const prevOverscroll = html.style.overscrollBehavior;
-    html.style.overscrollBehavior = "none";
-
-    viewport.addEventListener("resize", schedule);
-    viewport.addEventListener("scroll", schedule);
-    applySettled();
-
-    return () => {
-      viewport.removeEventListener("resize", schedule);
-      viewport.removeEventListener("scroll", schedule);
-      if (raf) cancelAnimationFrame(raf);
-      clearTimeout(settleTimer);
-      html.style.overscrollBehavior = prevOverscroll;
-      node.style.paddingBottom = "";
-      if (composerRef.current) composerRef.current.style.transform = "";
-    };
-  }, [chatOpen, narrow]);
-
-  // iOS: khóa scroll của trang phía sau khi panel mở — chặn scroll chaining
-  // làm viewport dịch chuyển và gây giật.
-  useEffect(() => {
-    if (!chatOpen || !narrow) return undefined;
-    const scrollY = window.scrollY;
-    const { style } = document.body;
-    const prev = { position: style.position, top: style.top, left: style.left, right: style.right, width: style.width };
-    style.position = "fixed";
-    style.top = `-${scrollY}px`;
-    style.left = "0";
-    style.right = "0";
-    style.width = "100%";
-    return () => {
-      style.position = prev.position;
-      style.top = prev.top;
-      style.left = prev.left;
-      style.right = prev.right;
-      style.width = prev.width;
-      window.scrollTo(0, scrollY);
-    };
-  }, [chatOpen, narrow]);
-
-  const panelRef = useRef(null);
   const picks = useMemo(() => parsePortfolioCodes(input), [input]);
   const rowMap = useMemo(() => new Map(rows.map((row) => [row.ticker, row])), [rows]);
   const analyzed = analyzedCodes.map((ticker) => {
@@ -912,19 +747,6 @@ function PortfolioBox({ rows, asOfDate }) {
     { key: "sd", color: "#9b7cf7", label: "Đúng ngành - sai sóng" },
     { key: "ss", color: "#e34948", label: "Sai sóng - sai ngành" },
   ];
-
-  useEffect(() => {
-    if (panelRef.current) panelRef.current.scrollTop = panelRef.current.scrollHeight;
-  }, [msgs, chatOpen]);
-
-  useEffect(() => {
-    if (!chatOpen) return undefined;
-    const onKey = (event) => {
-      if (event.key === "Escape") setChatOpen(false);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [chatOpen]);
 
   const updateInput = (value) => {
     setInput(value);
@@ -1093,100 +915,21 @@ function PortfolioBox({ rows, asOfDate }) {
         </button>
       </Card>
 
-      {chatOpen && (
-        <>
-          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.52)", backdropFilter: narrow ? undefined : "blur(2px)", zIndex: 900, touchAction: "none" }} onClick={() => setChatOpen(false)} />
-          <aside ref={asideRef} style={{
-            position: "fixed",
-            top: 0,
-            height: narrow ? "100dvh" : "100%",
-            right: 0,
-            bottom: narrow ? undefined : 0,
-            width: narrow ? "100vw" : "min(460px,96vw)",
-            maxWidth: "100vw",
-            boxSizing: "border-box",
-            overflow: "hidden",
-            overscrollBehavior: "contain",
-            background: "var(--surf)",
-            borderLeft: narrow ? "none" : "0.5px solid var(--bdr)",
-            zIndex: 901,
-            display: "flex",
-            flexDirection: "column",
-            willChange: narrow ? "transform" : undefined,
-            boxShadow: narrow ? "none" : "-24px 0 70px rgba(0,0,0,.35)"
-          }}>
-            <div style={{ padding: narrow ? "12px 14px" : "14px 16px", borderBottom: "0.5px solid var(--bdr)", background: "var(--elev)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, minWidth: 0 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-                <span style={{ width: 32, height: 32, borderRadius: 999, background: "var(--Bs)", border: "0.5px solid var(--Bb)", color: "var(--B)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 850, flexShrink: 0 }}>✦</span>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 800, color: "var(--t1)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Tư vấn AI danh mục</div>
-                  <div style={{ fontSize: 10, color: "var(--t3)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Hỏi về danh mục, sóng ngành, chiến lược</div>
-                </div>
-              </div>
-              <button type="button" onClick={() => setChatOpen(false)} style={{ width: 30, height: 30, borderRadius: 8, border: "0.5px solid var(--bdr)", background: "var(--surf)", color: "var(--t2)", cursor: "pointer", fontSize: 15, flexShrink: 0 }}>
-                ×
-              </button>
-            </div>
-
-            {hasAnalysis && (
-              <div style={{ margin: narrow ? "10px 14px 0" : "12px 16px 0", background: "var(--elev)", border: "0.5px solid var(--bdr)", borderRadius: 9, padding: "10px 12px", flexShrink: 0, minWidth: 0, overflow: "hidden" }}>
-                <div style={{ fontSize: 10, color: "var(--t3)", marginBottom: 7, fontWeight: 750, textTransform: "uppercase", letterSpacing: ".05em" }}>Danh mục đang phân tích</div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
-                  {analyzed.map((row) => {
-                    const cat = cats.find((item) => item.key === row.cat);
-                    return (
-                      <span key={row.ticker} style={{ fontSize: 11, fontWeight: 800, padding: "2px 8px", borderRadius: 5, background: `${cat?.color || "var(--t3)"}20`, color: cat?.color || "var(--t3)", border: `0.5px solid ${cat?.color || "var(--bdr)"}44` }}>
-                        {row.ticker}
-                      </span>
-                    );
-                  })}
-                </div>
-                <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", minWidth: 0 }}>
-                  <span style={{ fontSize: 18, fontWeight: 850, color: score >= 70 ? "#0ca30c" : score >= 50 ? "#eda100" : "#e34948", ...mono }}>{score}/100</span>
-                  <span style={{ flex: "1 1 180px", minWidth: 0, fontSize: 10, color: "var(--t3)", overflowWrap: "anywhere" }}>{counts.dd} đúng sóng đúng ngành · {counts.ss} sai sóng sai ngành</span>
-                </div>
-              </div>
-            )}
-
-            <div ref={panelRef} style={{ flex: 1, minWidth: 0, minHeight: 0, overflowY: "auto", overflowX: "hidden", display: "flex", flexDirection: "column", gap: 10, padding: narrow ? "12px 14px" : "14px 16px", overscrollBehavior: "contain" }}>
-              {msgs.map((msg, index) => (
-                <PortfolioMsgBubble key={`panel-${msg.role}-${index}-${msg.text}`} role={msg.role} text={msg.text} panel />
-              ))}
-            </div>
-
-            <div ref={composerRef} style={{ flexShrink: 0, background: "var(--surf)", willChange: narrow ? "transform" : undefined }}>
-              <div style={{ padding: narrow ? "9px 14px" : "10px 16px", display: "flex", gap: 6, flexWrap: "wrap", borderTop: "0.5px solid var(--bdr)", minWidth: 0 }}>
-                {["Mã nào đúng sóng đúng ngành?", "Ngành nào đang dẫn dắt?", "Nên cắt mã nào?", "Phân bổ tỷ trọng 3-5-2?", "So sánh các mã?"].map((text) => (
-                  <button key={text} type="button" onClick={() => sendPortfolioMsg(text, true)} disabled={chatLoading} style={{ border: "0.5px solid var(--bdr)", background: "var(--elev)", color: "var(--t2)", borderRadius: 999, padding: "5px 9px", fontSize: 11, fontWeight: 650, cursor: chatLoading ? "not-allowed" : "pointer", opacity: chatLoading ? 0.55 : 1 }}>
-                    {text}
-                  </button>
-                ))}
-              </div>
-
-              <div style={{ display: "flex", gap: 8, padding: narrow ? "10px 14px calc(10px + env(safe-area-inset-bottom, 0px))" : "12px 16px", borderTop: "0.5px solid var(--bdr)", alignItems: "flex-end", minWidth: 0 }}>
-                <textarea
-                  autoFocus={!narrow}
-                  rows={1}
-                  value={panelVal}
-                  onFocus={handleComposerFocus}
-                  onChange={(event) => setPanelVal(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" && !event.shiftKey) {
-                      event.preventDefault();
-                      sendPortfolioMsg(panelVal, true);
-                    }
-                  }}
-                  placeholder="Hỏi bất cứ điều gì về danh mục..."
-                  style={{ flex: 1, minWidth: 0, minHeight: 36, maxHeight: 90, resize: "none", padding: "8px 12px", borderRadius: 8, border: "0.5px solid var(--bdr)", background: "var(--elev)", color: "var(--t1)", fontSize: narrow ? 16 : 12, lineHeight: 1.5, outline: "none", fontFamily: "inherit" }}
-                />
-                <button type="button" onClick={() => sendPortfolioMsg(panelVal, true)} disabled={chatLoading || !panelVal.trim()} style={{ width: 36, height: 36, borderRadius: 8, border: "none", background: "var(--B)", color: "white", display: "flex", alignItems: "center", justifyContent: "center", cursor: chatLoading || !panelVal.trim() ? "not-allowed" : "pointer", opacity: chatLoading || !panelVal.trim() ? 0.55 : 1, flexShrink: 0 }}>
-                  ➤
-                </button>
-              </div>
-            </div>
-          </aside>
-        </>
-      )}
+      <PortfolioChatPanel
+        open={chatOpen}
+        narrow={narrow}
+        onClose={() => setChatOpen(false)}
+        msgs={msgs}
+        loading={chatLoading}
+        value={panelVal}
+        onChange={setPanelVal}
+        onSend={(text) => sendPortfolioMsg(text, true)}
+        hasAnalysis={hasAnalysis}
+        analyzed={analyzed}
+        cats={cats}
+        score={score}
+        counts={counts}
+      />
     </>
   );
 }
