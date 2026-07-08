@@ -765,11 +765,12 @@ function PortfolioBox({ rows, asOfDate }) {
     { role: "ai", text: "Nhập mã và bấm Phân tích, sau đó hỏi tôi về mã đúng sóng, ngành dẫn dắt, mã nên cắt hoặc phân bổ tỷ trọng." },
   ]);
   const asideRef = useRef(null);
+  const composerRef = useRef(null);
 
-  // iOS: theo dõi visualViewport bằng cách ghi style trực tiếp vào DOM (rAF-throttled)
-  // thay vì setState — tránh re-render cả component mỗi frame khi bàn phím mở/đóng.
-  // Trong lúc bàn phím đang trượt chỉ dùng transform (compositor, không reflow);
-  // khi sự kiện lắng xuống mới chốt top/height thật một lần.
+  // iOS: panel đứng yên tuyệt đối (không transform, không đổi height) để header
+  // không bao giờ nhảy. Khi bàn phím trượt, chỉ cụm chips + ô nhập bám theo bằng
+  // transform (compositor, không reflow); khi bàn phím dừng mới co vùng tin nhắn
+  // một lần bằng paddingBottom.
   useEffect(() => {
     if (!chatOpen || !narrow) return undefined;
     const viewport = window.visualViewport;
@@ -778,20 +779,26 @@ function PortfolioBox({ rows, asOfDate }) {
 
     let raf = 0;
     let settleTimer = 0;
-    const settled = { top: 0, height: node.offsetHeight || viewport.height };
+    const fullHeight = node.offsetHeight || viewport.height;
+    const settled = { padding: 0 };
 
     const applySettled = () => {
-      settled.top = viewport.offsetTop;
-      settled.height = viewport.height;
-      node.style.transform = "";
-      node.style.top = `${settled.top}px`;
-      node.style.height = `${settled.height}px`;
+      // Hủy pan tự động của iOS (dịch visual viewport khi ô nhập bị che)
+      window.scrollTo(0, 0);
+      const overlap = Math.max(0, Math.round(fullHeight - viewport.height - viewport.offsetTop));
+      settled.padding = overlap;
+      node.style.paddingBottom = overlap ? `${overlap}px` : "";
+      if (composerRef.current) composerRef.current.style.transform = "";
+      if (panelRef.current) panelRef.current.scrollTop = panelRef.current.scrollHeight;
     };
 
     const track = () => {
       raf = 0;
-      const delta = (viewport.offsetTop + viewport.height) - (settled.top + settled.height);
-      node.style.transform = delta ? `translateY(${delta}px)` : "";
+      const composer = composerRef.current;
+      if (composer) {
+        const delta = (viewport.offsetTop + viewport.height) - (fullHeight - settled.padding);
+        composer.style.transform = delta ? `translateY(${delta}px)` : "";
+      }
       clearTimeout(settleTimer);
       settleTimer = setTimeout(applySettled, 120);
     };
@@ -808,7 +815,8 @@ function PortfolioBox({ rows, asOfDate }) {
       viewport.removeEventListener("scroll", schedule);
       if (raf) cancelAnimationFrame(raf);
       clearTimeout(settleTimer);
-      node.style.transform = "";
+      node.style.paddingBottom = "";
+      if (composerRef.current) composerRef.current.style.transform = "";
     };
   }, [chatOpen, narrow]);
 
@@ -1085,7 +1093,6 @@ function PortfolioBox({ rows, asOfDate }) {
             zIndex: 901,
             display: "flex",
             flexDirection: "column",
-            willChange: narrow ? "transform" : undefined,
             boxShadow: narrow ? "none" : "-24px 0 70px rgba(0,0,0,.35)"
           }}>
             <div style={{ padding: narrow ? "12px 14px" : "14px 16px", borderBottom: "0.5px solid var(--bdr)", background: "var(--elev)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, minWidth: 0 }}>
@@ -1127,32 +1134,34 @@ function PortfolioBox({ rows, asOfDate }) {
               ))}
             </div>
 
-            <div style={{ padding: narrow ? "9px 14px" : "10px 16px", display: "flex", gap: 6, flexWrap: "wrap", borderTop: "0.5px solid var(--bdr)", minWidth: 0 }}>
-              {["Mã nào đúng sóng đúng ngành?", "Ngành nào đang dẫn dắt?", "Nên cắt mã nào?", "Phân bổ tỷ trọng 3-5-2?", "So sánh các mã?"].map((text) => (
-                <button key={text} type="button" onClick={() => sendPortfolioMsg(text, true)} disabled={chatLoading} style={{ border: "0.5px solid var(--bdr)", background: "var(--elev)", color: "var(--t2)", borderRadius: 999, padding: "5px 9px", fontSize: 11, fontWeight: 650, cursor: chatLoading ? "not-allowed" : "pointer", opacity: chatLoading ? 0.55 : 1 }}>
-                  {text}
-                </button>
-              ))}
-            </div>
+            <div ref={composerRef} style={{ flexShrink: 0, background: "var(--surf)", willChange: narrow ? "transform" : undefined }}>
+              <div style={{ padding: narrow ? "9px 14px" : "10px 16px", display: "flex", gap: 6, flexWrap: "wrap", borderTop: "0.5px solid var(--bdr)", minWidth: 0 }}>
+                {["Mã nào đúng sóng đúng ngành?", "Ngành nào đang dẫn dắt?", "Nên cắt mã nào?", "Phân bổ tỷ trọng 3-5-2?", "So sánh các mã?"].map((text) => (
+                  <button key={text} type="button" onClick={() => sendPortfolioMsg(text, true)} disabled={chatLoading} style={{ border: "0.5px solid var(--bdr)", background: "var(--elev)", color: "var(--t2)", borderRadius: 999, padding: "5px 9px", fontSize: 11, fontWeight: 650, cursor: chatLoading ? "not-allowed" : "pointer", opacity: chatLoading ? 0.55 : 1 }}>
+                    {text}
+                  </button>
+                ))}
+              </div>
 
-            <div style={{ display: "flex", gap: 8, padding: narrow ? "10px 14px calc(10px + env(safe-area-inset-bottom, 0px))" : "12px 16px", borderTop: "0.5px solid var(--bdr)", alignItems: "flex-end", minWidth: 0 }}>
-              <textarea
-                autoFocus={!narrow}
-                rows={1}
-                value={panelVal}
-                onChange={(event) => setPanelVal(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" && !event.shiftKey) {
-                    event.preventDefault();
-                    sendPortfolioMsg(panelVal, true);
-                  }
-                }}
-                placeholder="Hỏi bất cứ điều gì về danh mục..."
-                style={{ flex: 1, minWidth: 0, minHeight: 36, maxHeight: 90, resize: "none", padding: "8px 12px", borderRadius: 8, border: "0.5px solid var(--bdr)", background: "var(--elev)", color: "var(--t1)", fontSize: narrow ? 16 : 12, lineHeight: 1.5, outline: "none", fontFamily: "inherit" }}
-              />
-              <button type="button" onClick={() => sendPortfolioMsg(panelVal, true)} disabled={chatLoading || !panelVal.trim()} style={{ width: 36, height: 36, borderRadius: 8, border: "none", background: "var(--B)", color: "white", display: "flex", alignItems: "center", justifyContent: "center", cursor: chatLoading || !panelVal.trim() ? "not-allowed" : "pointer", opacity: chatLoading || !panelVal.trim() ? 0.55 : 1, flexShrink: 0 }}>
-                ➤
-              </button>
+              <div style={{ display: "flex", gap: 8, padding: narrow ? "10px 14px calc(10px + env(safe-area-inset-bottom, 0px))" : "12px 16px", borderTop: "0.5px solid var(--bdr)", alignItems: "flex-end", minWidth: 0 }}>
+                <textarea
+                  autoFocus={!narrow}
+                  rows={1}
+                  value={panelVal}
+                  onChange={(event) => setPanelVal(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" && !event.shiftKey) {
+                      event.preventDefault();
+                      sendPortfolioMsg(panelVal, true);
+                    }
+                  }}
+                  placeholder="Hỏi bất cứ điều gì về danh mục..."
+                  style={{ flex: 1, minWidth: 0, minHeight: 36, maxHeight: 90, resize: "none", padding: "8px 12px", borderRadius: 8, border: "0.5px solid var(--bdr)", background: "var(--elev)", color: "var(--t1)", fontSize: narrow ? 16 : 12, lineHeight: 1.5, outline: "none", fontFamily: "inherit" }}
+                />
+                <button type="button" onClick={() => sendPortfolioMsg(panelVal, true)} disabled={chatLoading || !panelVal.trim()} style={{ width: 36, height: 36, borderRadius: 8, border: "none", background: "var(--B)", color: "white", display: "flex", alignItems: "center", justifyContent: "center", cursor: chatLoading || !panelVal.trim() ? "not-allowed" : "pointer", opacity: chatLoading || !panelVal.trim() ? 0.55 : 1, flexShrink: 0 }}>
+                  ➤
+                </button>
+              </div>
             </div>
           </aside>
         </>
