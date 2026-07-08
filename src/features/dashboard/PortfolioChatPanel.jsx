@@ -89,18 +89,30 @@ export default function PortfolioChatPanel({ open, narrow, onClose, msgs, loadin
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
-  // iOS: khóa scroll trang phía sau khi panel mở — trang không còn gì để cuộn
-  // nên Safari không thể dịch layout viewport khi bàn phím bật.
+  // iOS/mobile: Dashboard mobile tự cuộn trong một container riêng, không phải
+  // body. Khóa cả container đó để gesture trong chat không kéo trang phía sau.
   useEffect(() => {
     if (!open || !narrow) return undefined;
-    const scrollY = window.scrollY;
+    const dashboardScroller = document.querySelector('[data-mobile-dashboard-scroll="true"]');
+    const scrollY = dashboardScroller ? dashboardScroller.scrollTop : window.scrollY;
     const { style } = document.body;
     const prev = { position: style.position, top: style.top, left: style.left, right: style.right, width: style.width };
     style.position = "fixed";
-    style.top = `-${scrollY}px`;
+    style.top = dashboardScroller ? "0" : `-${scrollY}px`;
     style.left = "0";
     style.right = "0";
     style.width = "100%";
+
+    const scrollerStyle = dashboardScroller?.style;
+    const prevScroller = scrollerStyle
+      ? { overflowY: scrollerStyle.overflowY, overscrollBehavior: scrollerStyle.overscrollBehavior, touchAction: scrollerStyle.touchAction }
+      : null;
+    if (scrollerStyle) {
+      scrollerStyle.overflowY = "hidden";
+      scrollerStyle.overscrollBehavior = "none";
+      scrollerStyle.touchAction = "none";
+    }
+
     const html = document.documentElement;
     const prevOverscroll = html.style.overscrollBehavior;
     html.style.overscrollBehavior = "none";
@@ -110,8 +122,14 @@ export default function PortfolioChatPanel({ open, narrow, onClose, msgs, loadin
       style.left = prev.left;
       style.right = prev.right;
       style.width = prev.width;
+      if (scrollerStyle && prevScroller) {
+        scrollerStyle.overflowY = prevScroller.overflowY;
+        scrollerStyle.overscrollBehavior = prevScroller.overscrollBehavior;
+        scrollerStyle.touchAction = prevScroller.touchAction;
+        dashboardScroller.scrollTop = scrollY;
+      }
       html.style.overscrollBehavior = prevOverscroll;
-      window.scrollTo(0, scrollY);
+      if (!dashboardScroller) window.scrollTo(0, scrollY);
     };
   }, [open, narrow]);
 
@@ -129,7 +147,6 @@ export default function PortfolioChatPanel({ open, narrow, onClose, msgs, loadin
       raf = 0;
       node.style.height = `${Math.round(viewport.height)}px`;
       node.style.transform = `translateY(${Math.round(viewport.offsetTop)}px)`;
-      if (msgListRef.current) msgListRef.current.scrollTop = msgListRef.current.scrollHeight;
     };
     const schedule = () => {
       if (!raf) raf = requestAnimationFrame(apply);
@@ -145,6 +162,48 @@ export default function PortfolioChatPanel({ open, narrow, onClose, msgs, loadin
       if (raf) cancelAnimationFrame(raf);
       node.style.height = "";
       node.style.transform = "";
+    };
+  }, [open, narrow]);
+
+  // iOS chưa hỗ trợ overscroll-behavior đủ ổn định cho nested scroll.
+  // Chặn pull vượt biên trong khung tin nhắn để scroll không rơi xuống Dashboard.
+  useEffect(() => {
+    if (!open || !narrow) return undefined;
+    const panel = asideRef.current;
+    const list = msgListRef.current;
+    if (!panel || !list) return undefined;
+
+    let startY = 0;
+    const onTouchStart = (event) => {
+      startY = event.touches?.[0]?.clientY || 0;
+    };
+    const onTouchMove = (event) => {
+      const target = event.target;
+      const scrollTarget = target?.closest?.('[data-portfolio-chat-scroll="true"]');
+
+      if (scrollTarget === list) {
+        const currentY = event.touches?.[0]?.clientY || startY;
+        const deltaY = currentY - startY;
+        const canScroll = list.scrollHeight > list.clientHeight;
+        const atTop = list.scrollTop <= 0;
+        const atBottom = list.scrollTop + list.clientHeight >= list.scrollHeight - 1;
+
+        if (!canScroll || (atTop && deltaY > 0) || (atBottom && deltaY < 0)) {
+          event.preventDefault();
+        }
+        event.stopPropagation();
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+    };
+
+    panel.addEventListener("touchstart", onTouchStart, { passive: true });
+    panel.addEventListener("touchmove", onTouchMove, { passive: false });
+    return () => {
+      panel.removeEventListener("touchstart", onTouchStart);
+      panel.removeEventListener("touchmove", onTouchMove);
     };
   }, [open, narrow]);
 
@@ -208,7 +267,7 @@ export default function PortfolioChatPanel({ open, narrow, onClose, msgs, loadin
           </div>
         )}
 
-        <div ref={msgListRef} style={{ flex: 1, minWidth: 0, minHeight: 0, overflowY: "auto", overflowX: "hidden", display: "flex", flexDirection: "column", gap: 10, padding: narrow ? "12px 14px" : "14px 16px", overscrollBehavior: "contain" }}>
+        <div ref={msgListRef} data-portfolio-chat-scroll="true" style={{ flex: 1, minWidth: 0, minHeight: 0, overflowY: "auto", overflowX: "hidden", display: "flex", flexDirection: "column", gap: 10, padding: narrow ? "12px 14px" : "14px 16px", overscrollBehavior: "contain", WebkitOverflowScrolling: "touch", touchAction: narrow ? "pan-y" : undefined }}>
           {msgs.map((msg, index) => (
             <PortfolioMsgBubble key={`panel-${msg.role}-${index}-${msg.text}`} role={msg.role} text={msg.text} panel />
           ))}

@@ -471,7 +471,7 @@ function SmdtPreviewLegend() {
   );
 }
 
-function SmdtPreview({ title, meta, leftTitle, rightTitle, leftRows, rightRows, defaultTab = "core", navId, showPrice = false }) {
+function SmdtPreview({ title, meta, leftTitle, rightTitle, leftRows, rightRows, defaultTab = "core", navId, showPrice = false, rowNameColor = "var(--t1)" }) {
   const [tab, setTab] = useState(defaultTab);
   const rows = tab === "core" ? leftRows : rightRows;
   const displayRows = rows.length ? [...rows, ...Array.from({ length: Math.max(0, 10 - rows.length) }, (_, index) => ({ key: `placeholder-${index}`, placeholder: true }))] : [];
@@ -495,7 +495,7 @@ function SmdtPreview({ title, meta, leftTitle, rightTitle, leftRows, rightRows, 
           <div key={row.key} aria-hidden={row.placeholder || undefined} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, minWidth: 0, minHeight: 36, padding: "2px 0", borderBottom: `0.5px solid ${row.placeholder ? "transparent" : "var(--bdr)"}` }}>
             {!row.placeholder && (
               <>
-                <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--t1)", fontSize: 11, fontWeight: 700 }}>
+                <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: rowNameColor, fontSize: 11, fontWeight: 700 }}>
                   {row.name}
                 </span>
                 {showPrice && <PriceChip value={row.price} />}
@@ -1020,8 +1020,8 @@ function WaveTimeline({ events, recentDates, narrow }) {
           const lastPoint = event.points.at(-1);
           const isActive = Boolean(recentCut && lastPoint && lastPoint.date >= recentCut);
           return (
-            <div key={event.key} style={{ display: "flex", alignItems: "center", minHeight: WAVE_ROW_HEIGHT, borderBottom: "0.5px solid var(--bdrs)", cursor: "pointer", background: isActive ? "rgba(124,58,237,.04)" : undefined }} onClick={() => nav("lo-trinh-dan-song")}>
-              <div style={{ width: nameWidth, flexShrink: 0, fontSize: 10, fontWeight: event.isCore ? 750 : 550, padding: "0 8px", textAlign: "right", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", borderRight: "0.5px solid var(--bdr)", color: event.isCore ? "#F59E0B" : "var(--t2)" }} title={event.name}>{event.name}</div>
+            <div key={event.key} style={{ display: "flex", alignItems: "center", minHeight: WAVE_ROW_HEIGHT, borderBottom: "0.5px solid var(--bdrs)", cursor: "pointer" }} onClick={() => nav("lo-trinh-dan-song")}>
+              <div style={{ width: nameWidth, flexShrink: 0, fontSize: 10, fontWeight: event.isCore ? 750 : 550, padding: "0 8px", textAlign: "right", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", borderRight: "0.5px solid var(--bdr)", color: "var(--t2)" }} title={event.name}>{event.name}</div>
               <div style={{ flex: 1, position: "relative", height: WAVE_ROW_HEIGHT, minWidth: 0 }}>
                 {ticks.map((tick) => <span key={tick.key} style={{ position: "absolute", top: 0, bottom: 0, left: `${tick.left}%`, width: 1, background: "var(--bdr)", opacity: 0.4 }} />)}
                 {event.points.map((point) => {
@@ -1177,7 +1177,7 @@ function SignalLog({ topRows, branchRows, stockSignalRows, waveRows }) {
       items.push({ kind: "ma", type: row.signal === "MUA" ? "mua" : "ban", time: row.date ? fmtFull(row.date) : "Live", title: row.ticker, tag: row.signal === "MUA" ? "MUA" : "BÁN", sub: `${row.signal === "MUA" ? "Tín hiệu mua" : "Tín hiệu bán"}${row.percent != null ? ` ${row.percent}%` : ""}${Number.isFinite(row.price) ? ` · Giá ${fmtNum(row.price)}` : ""}` });
     }
     for (const row of topRows.slice(0, 8)) {
-      items.push({ kind: "ma", type: "smdt", time: "SMDT", title: row.ticker, tag: "SMDT", sub: `${row.industry} · SMDT đạt ${row.smdt.toFixed(1)}% · ${sigLabel(row.sig)}` });
+      items.push({ kind: "ma", type: "smdt", time: "SMDT", title: row.ticker, tag: "SMDT", industry: row.industry, sub: `SMDT đạt ${row.smdt.toFixed(1)}% · ${sigLabel(row.sig)}` });
     }
     for (const row of branchRows.slice(0, 8)) {
       items.push({ kind: "ng", type: logToneForSig(row.sig), time: "Ngành", title: row.label, tag: sigLabel(row.sig), sub: `Dòng tiền ngành đang ở trạng thái ${sigLabel(row.sig).toLowerCase()}` });
@@ -1227,11 +1227,14 @@ function SignalLog({ topRows, branchRows, stockSignalRows, waveRows }) {
                 <i className={`ti ${item.kind === "ng" ? "ti-building-community" : tone.icon}`} />
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 11, fontWeight: 650, color: "var(--t1)", display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                <div style={{ fontSize: 11, fontWeight: 650, color: item.kind === "ng" ? "var(--t2)" : "var(--t1)", display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                   {item.title}
                   <span style={{ fontSize: 9, fontWeight: 800, padding: "1px 6px", borderRadius: 3, whiteSpace: "nowrap", color: tone.color, background: tone.bg, border: `0.5px solid ${tone.color}33` }}>{item.tag}</span>
                 </div>
-                <div style={{ fontSize: 10, color: "var(--t3)", marginTop: 2, lineHeight: 1.5 }}>{item.sub}</div>
+                <div style={{ fontSize: 10, color: "var(--t3)", marginTop: 2, lineHeight: 1.5 }}>
+                  {item.industry && <><span style={{ color: "var(--t2)" }}>{item.industry}</span> · </>}
+                  {item.sub}
+                </div>
               </div>
               <div style={{ fontSize: 10, color: "var(--t4)", whiteSpace: "nowrap" }}>{item.time}</div>
             </div>
@@ -1597,6 +1600,7 @@ export function ModDashboard() {
           rightRows={smdtBranchOther}
           defaultTab="other"
           navId="smdt-nganh"
+          rowNameColor="var(--t2)"
         />
         <SmdtPreview
           title="SMDT cổ phiếu"
