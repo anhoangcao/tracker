@@ -781,14 +781,9 @@ function PortfolioBox({ rows, asOfDate }) {
     let settleTimer = 0;
     const settled = { padding: 0 };
 
-    // Ghim panel bám theo mép trên của visual viewport: iOS có pan đi đâu thì
-    // panel trượt theo đúng từng frame (compositor) → nhìn bằng mắt panel đứng yên.
-    const pin = () => {
-      node.style.transform = viewport.offsetTop ? `translateY(${viewport.offsetTop}px)` : "";
-    };
-
+    // Không dịch chuyển panel: iOS/webview đã tự giữ phần tử fixed dính theo
+    // visual viewport khi bàn phím mở — chỉ co vùng tin nhắn bằng paddingBottom.
     const applySettled = () => {
-      pin();
       const overlap = Math.max(0, Math.round(node.offsetHeight - viewport.height));
       settled.padding = overlap;
       node.style.paddingBottom = overlap ? `${overlap}px` : "";
@@ -798,7 +793,6 @@ function PortfolioBox({ rows, asOfDate }) {
 
     const track = () => {
       raf = 0;
-      pin();
       const composer = composerRef.current;
       if (composer) {
         const delta = Math.round(viewport.height - (node.offsetHeight - settled.padding));
@@ -826,7 +820,6 @@ function PortfolioBox({ rows, asOfDate }) {
       clearTimeout(settleTimer);
       html.style.overscrollBehavior = prevOverscroll;
       node.style.paddingBottom = "";
-      node.style.transform = "";
       if (composerRef.current) composerRef.current.style.transform = "";
     };
   }, [chatOpen, narrow]);
