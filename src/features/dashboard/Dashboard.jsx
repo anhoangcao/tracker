@@ -764,33 +764,59 @@ function PortfolioBox({ rows, asOfDate }) {
   const [msgs, setMsgs] = useState([
     { role: "ai", text: "Nhập mã và bấm Phân tích, sau đó hỏi tôi về mã đúng sóng, ngành dẫn dắt, mã nên cắt hoặc phân bổ tỷ trọng." },
   ]);
-  const [vv, setVv] = useState({ top: 0, height: "100%" });
+  const asideRef = useRef(null);
 
+  // iOS: theo dõi visualViewport bằng cách ghi style trực tiếp vào DOM (rAF-throttled)
+  // thay vì setState — tránh re-render cả component mỗi frame khi bàn phím mở/đóng.
   useEffect(() => {
-    if (!chatOpen || !narrow) {
-      setVv({ top: 0, height: "100%" });
-      return undefined;
-    }
+    if (!chatOpen || !narrow) return undefined;
+    const viewport = window.visualViewport;
+    if (!viewport) return undefined;
 
-    const updateViewport = () => {
-      if (window.visualViewport) {
-        setVv({
-          top: window.visualViewport.offsetTop,
-          height: window.visualViewport.height,
-        });
-      }
+    let raf = 0;
+    const apply = () => {
+      raf = 0;
+      const node = asideRef.current;
+      if (!node) return;
+      node.style.top = `${viewport.offsetTop}px`;
+      node.style.height = `${viewport.height}px`;
+    };
+    const schedule = () => {
+      if (!raf) raf = requestAnimationFrame(apply);
     };
 
-    window.visualViewport?.addEventListener("resize", updateViewport);
-    window.visualViewport?.addEventListener("scroll", updateViewport);
-    updateViewport();
-
-    const timer = setTimeout(updateViewport, 100);
+    viewport.addEventListener("resize", schedule);
+    viewport.addEventListener("scroll", schedule);
+    apply();
+    const timer = setTimeout(schedule, 100);
 
     return () => {
-      window.visualViewport?.removeEventListener("resize", updateViewport);
-      window.visualViewport?.removeEventListener("scroll", updateViewport);
+      viewport.removeEventListener("resize", schedule);
+      viewport.removeEventListener("scroll", schedule);
+      if (raf) cancelAnimationFrame(raf);
       clearTimeout(timer);
+    };
+  }, [chatOpen, narrow]);
+
+  // iOS: khóa scroll của trang phía sau khi panel mở — chặn scroll chaining
+  // làm viewport dịch chuyển và gây giật.
+  useEffect(() => {
+    if (!chatOpen || !narrow) return undefined;
+    const scrollY = window.scrollY;
+    const { style } = document.body;
+    const prev = { position: style.position, top: style.top, left: style.left, right: style.right, width: style.width };
+    style.position = "fixed";
+    style.top = `-${scrollY}px`;
+    style.left = "0";
+    style.right = "0";
+    style.width = "100%";
+    return () => {
+      style.position = prev.position;
+      style.top = prev.top;
+      style.left = prev.left;
+      style.right = prev.right;
+      style.width = prev.width;
+      window.scrollTo(0, scrollY);
     };
   }, [chatOpen, narrow]);
 
@@ -1028,11 +1054,11 @@ function PortfolioBox({ rows, asOfDate }) {
 
       {chatOpen && (
         <>
-          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.52)", backdropFilter: "blur(2px)", zIndex: 900 }} onClick={() => setChatOpen(false)} />
-          <aside style={{
+          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.52)", backdropFilter: narrow ? undefined : "blur(2px)", zIndex: 900, touchAction: "none" }} onClick={() => setChatOpen(false)} />
+          <aside ref={asideRef} style={{
             position: "fixed",
-            top: narrow ? vv.top : 0,
-            height: narrow ? vv.height : "100%",
+            top: 0,
+            height: narrow ? "100dvh" : "100%",
             right: 0,
             bottom: narrow ? undefined : 0,
             width: narrow ? "100vw" : "min(460px,96vw)",
@@ -1096,7 +1122,7 @@ function PortfolioBox({ rows, asOfDate }) {
 
             <div style={{ display: "flex", gap: 8, padding: narrow ? "10px 14px calc(10px + env(safe-area-inset-bottom, 0px))" : "12px 16px", borderTop: "0.5px solid var(--bdr)", alignItems: "flex-end", minWidth: 0 }}>
               <textarea
-                autoFocus
+                autoFocus={!narrow}
                 rows={1}
                 value={panelVal}
                 onChange={(event) => setPanelVal(event.target.value)}
