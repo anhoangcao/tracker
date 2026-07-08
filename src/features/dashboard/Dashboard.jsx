@@ -768,33 +768,47 @@ function PortfolioBox({ rows, asOfDate }) {
 
   // iOS: theo dõi visualViewport bằng cách ghi style trực tiếp vào DOM (rAF-throttled)
   // thay vì setState — tránh re-render cả component mỗi frame khi bàn phím mở/đóng.
+  // Trong lúc bàn phím đang trượt chỉ dùng transform (compositor, không reflow);
+  // khi sự kiện lắng xuống mới chốt top/height thật một lần.
   useEffect(() => {
     if (!chatOpen || !narrow) return undefined;
     const viewport = window.visualViewport;
-    if (!viewport) return undefined;
+    const node = asideRef.current;
+    if (!viewport || !node) return undefined;
 
     let raf = 0;
-    const apply = () => {
+    let settleTimer = 0;
+    const settled = { top: 0, height: node.offsetHeight || viewport.height };
+
+    const applySettled = () => {
+      settled.top = viewport.offsetTop;
+      settled.height = viewport.height;
+      node.style.transform = "";
+      node.style.top = `${settled.top}px`;
+      node.style.height = `${settled.height}px`;
+    };
+
+    const track = () => {
       raf = 0;
-      const node = asideRef.current;
-      if (!node) return;
-      node.style.top = `${viewport.offsetTop}px`;
-      node.style.height = `${viewport.height}px`;
+      const delta = (viewport.offsetTop + viewport.height) - (settled.top + settled.height);
+      node.style.transform = delta ? `translateY(${delta}px)` : "";
+      clearTimeout(settleTimer);
+      settleTimer = setTimeout(applySettled, 120);
     };
     const schedule = () => {
-      if (!raf) raf = requestAnimationFrame(apply);
+      if (!raf) raf = requestAnimationFrame(track);
     };
 
     viewport.addEventListener("resize", schedule);
     viewport.addEventListener("scroll", schedule);
-    apply();
-    const timer = setTimeout(schedule, 100);
+    applySettled();
 
     return () => {
       viewport.removeEventListener("resize", schedule);
       viewport.removeEventListener("scroll", schedule);
       if (raf) cancelAnimationFrame(raf);
-      clearTimeout(timer);
+      clearTimeout(settleTimer);
+      node.style.transform = "";
     };
   }, [chatOpen, narrow]);
 
@@ -1071,6 +1085,7 @@ function PortfolioBox({ rows, asOfDate }) {
             zIndex: 901,
             display: "flex",
             flexDirection: "column",
+            willChange: narrow ? "transform" : undefined,
             boxShadow: narrow ? "none" : "-24px 0 70px rgba(0,0,0,.35)"
           }}>
             <div style={{ padding: narrow ? "12px 14px" : "14px 16px", borderBottom: "0.5px solid var(--bdr)", background: "var(--elev)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, minWidth: 0 }}>
