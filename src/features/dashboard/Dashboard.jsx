@@ -1138,19 +1138,19 @@ function SignalPortfolio({ rows, date, live }) {
           <thead>
             <tr style={{ background: "var(--elev)" }}>
               {cols.map((col, i) => (
-                <th key={col.label} style={{ padding: narrow ? "6px 4px" : i === 0 ? "6px 12px" : "6px 8px", fontSize: narrow ? 8 : 9, fontWeight: 800, color: "var(--t3)", textTransform: "uppercase", borderBottom: "0.5px solid var(--bdr)", textAlign: col.align, whiteSpace: "nowrap" }}>{col.label}</th>
+                <th key={col.label} style={{ padding: narrow ? (i === 0 ? "6px 4px 6px 8px" : i === cols.length - 1 ? "6px 8px 6px 4px" : "6px 4px") : i === 0 ? "6px 12px" : "6px 8px", fontSize: narrow ? 8 : 9, fontWeight: 800, color: "var(--t3)", textTransform: "uppercase", borderBottom: "0.5px solid var(--bdr)", textAlign: col.align, whiteSpace: "nowrap" }}>{col.label}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {visible.map((row) => (
               <tr key={`${row.ticker}-${row.date}`} style={{ borderBottom: "0.5px solid var(--bdrs)" }}>
-                <td style={{ padding: narrow ? "7px 4px" : "7px 12px", fontWeight: 800, color: "var(--t1)" }}>{row.ticker}</td>
+                <td style={{ padding: narrow ? "7px 4px 7px 8px" : "7px 12px", fontWeight: 800, color: "var(--t1)" }}>{row.ticker}</td>
                 <td style={{ padding: narrow ? "7px 4px" : "7px 8px", textAlign: "center" }}><SignalPill compact sig={row.cashSig || signalToSig(row.signal)} /></td>
                 <td style={{ padding: narrow ? "7px 4px" : "7px 8px", textAlign: "center" }}><SmdtBarCell value={row.smdt} compact={narrow} /></td>
                 <td style={{ padding: narrow ? "7px 4px" : "7px 8px", textAlign: "right", fontWeight: 650, color: "var(--t1)", ...mono }}>{Number.isFinite(row.price) ? fmtNum(row.price) : "—"}</td>
                 <td style={{ padding: narrow ? "7px 4px" : "7px 8px", textAlign: "right", color: "var(--t2)", ...mono }}>{Number.isFinite(row.ave) ? fmtNum(row.ave) : "—"}</td>
-                <td style={{ padding: narrow ? "7px 4px" : "7px 8px", textAlign: "right" }}><PnlCell price={row.price} ave={row.ave} /></td>
+                <td style={{ padding: narrow ? "7px 8px 7px 4px" : "7px 8px", textAlign: "right" }}><PnlCell price={row.price} ave={row.ave} /></td>
               </tr>
             ))}
           </tbody>
