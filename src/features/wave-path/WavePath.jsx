@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNarrow } from "../../app/useNarrow";
 import { useBranchPath } from "../../data/useBranchPath";
+import { usePerformance } from "../../data/usePerformance";
 import { CORE_BRANCHES } from "../../data/useSMDT";
 import { useRealtimeSMDTBranchCrossFeed, useRealtimeSMDTTickerCrossFeed, useSMDTBranchCross, useSMDTTickerCross } from "../../data/useSMDTCross";
 import { mono } from "../../styles/tokens";
@@ -136,6 +137,18 @@ function branchAliases(row) {
     for (const alias of aliasesOfIndustry(name)) aliases.add(normalizeName(alias));
   }
   return aliases;
+}
+
+function resolveBranchPath(row, branchPath) {
+  const aliases = branchAliases(row);
+  for (const branch of branchPath.branches || []) {
+    if (branch?.path && aliases.has(normalizeName(branch.name))) return branch.path;
+  }
+  for (const alias of aliases) {
+    const path = branchPath.branchToPath?.[alias];
+    if (path) return path;
+  }
+  return "";
 }
 
 function sortTickerAsc(a, b) {
@@ -1001,51 +1014,77 @@ function MaDrawer({ item, peers, row, eventDate, tickerData, smdtData, onClose }
 function TickerTable({ row, eventDate, tickerData, branchPath, smdtData }) {
   const { t } = useTheme();
   const [openTicker, setOpenTicker] = useState(null);
+  const selectedBranchPath = useMemo(() => resolveBranchPath(row, branchPath), [branchPath, row]);
+  const performance = usePerformance(selectedBranchPath);
 
   useEffect(() => {
     setOpenTicker(null);
   }, [eventDate, row.key]);
 
   const rows = useMemo(() => {
-    const aliases = branchAliases(row);
-    const allowed = Object.entries(branchPath.tickerToBranch || {})
-      .filter(([, branch]) => aliases.has(normalizeName(branch)))
-      .map(([ticker]) => ticker);
-
-    return allowed
-      .map((ticker) => {
+    return performance.rows
+      .map((perf) => {
+        const ticker = perf.ticker;
         const meta = tickerData.tickers.find((item) => item.key === ticker);
         const point = getValueAtOrBefore(tickerData.matrix, tickerData.datesAsc, ticker, eventDate);
-        if (point.value == null) return null;
-        const signal = signalMeta(point.value, point.prev, t);
+        const signal = point.value == null
+          ? { label: "Theo dõi", color: t.t3, bg: "var(--elev)" }
+          : signalMeta(point.value, point.prev, t);
         return {
           ticker,
           name: meta?.name || ticker,
+          branch: perf.branch || row.label,
           value: point.value,
           prev: point.prev,
           date: point.date,
-          delta: Number.isFinite(point.prev) ? point.value - point.prev : null,
+          leadDate: perf.leadDate,
+          bottomDate: perf.bottomDate,
+          topDate: perf.topDate,
+          bottomPrice: perf.bottomPrice,
+          topPrice: perf.topPrice,
+          delta: perf.performancePct,
           signal,
         };
       })
-      .filter(Boolean)
-      .sort(sortTickerAsc)
+      .sort((a, b) => {
+        if (Number.isFinite(b.delta) && Number.isFinite(a.delta)) return b.delta - a.delta;
+        if (Number.isFinite(b.delta)) return 1;
+        if (Number.isFinite(a.delta)) return -1;
+        return sortTickerAsc(a, b);
+      })
       .slice(0, 60);
-  }, [branchPath.tickerToBranch, eventDate, row, t, tickerData.datesAsc, tickerData.matrix, tickerData.tickers]);
+  }, [eventDate, performance.rows, row.label, t, tickerData.datesAsc, tickerData.matrix, tickerData.tickers]);
 
-  if (branchPath.status === "loading" || tickerData.status === "loading") {
-    return <Loading label="Đang tải danh sách mã trong ngành…" compact style={{ marginBottom: 0, padding: "12px 4px" }} />;
+  if (branchPath.status === "loading" && !selectedBranchPath) {
+    return <Loading label="Đang tải path ngành…" compact style={{ marginBottom: 0, padding: "12px 4px" }} />;
+  }
+
+  if (!selectedBranchPath) {
+    return <div style={styles.tableNotice}>Chưa tìm được branch_path cho ngành {row.label} từ API BranchPath.</div>;
+  }
+
+  if (performance.status === "loading" && !rows.length) {
+    return <Loading label="Đang tải hiệu suất mã trong ngành…" compact style={{ marginBottom: 0, padding: "12px 4px" }} />;
+  }
+
+  if (performance.status === "error" && !rows.length) {
+    return (
+      <div style={styles.tableNotice}>
+        Lỗi tải performance: {performance.error}{" "}
+        <button type="button" onClick={performance.refresh} style={styles.textBtn}>Thử lại</button>
+      </div>
+    );
   }
 
   if (!rows.length) {
-    return <div style={styles.tableNotice}>Chưa có mã khớp ngành này từ API BranchPath/SMDT cổ phiếu.</div>;
+    return <div style={styles.tableNotice}>Chưa có mã performance cho branch_path {selectedBranchPath}.</div>;
   }
 
   return (
     <div style={styles.tablePanel}>
       <div style={styles.tableTitle}>
         <span>Mã trong dòng · {fmtDate(eventDate)}</span>
-        <span style={{ color: "var(--t4)", fontWeight: 600 }}>{rows.length} mã · <span style={{ color: "var(--A)" }}>click mã để xem chi tiết</span></span>
+        <span style={{ color: "var(--t4)", fontWeight: 600 }}>{rows.length} mã · branch_path {selectedBranchPath}</span>
       </div>
       <div style={{ overflowX: "auto" }}>
         <table style={styles.table}>
@@ -1060,27 +1099,42 @@ function TickerTable({ row, eventDate, tickerData, branchPath, smdtData }) {
             {rows.map((item, index) => (
               <tr
                 key={item.ticker}
-                onClick={() => setOpenTicker((cur) => (cur === item.ticker ? null : item.ticker))}
-                style={{ cursor: "pointer", background: openTicker === item.ticker ? "var(--Bs)" : "transparent" }}
+                onClick={() => {
+                  if (item.value == null) return;
+                  setOpenTicker((cur) => (cur === item.ticker ? null : item.ticker));
+                }}
+                style={{ cursor: item.value == null ? "default" : "pointer", background: openTicker === item.ticker ? "var(--Bs)" : "transparent" }}
               >
                 <td style={styles.tdMuted}>{index + 1}</td>
                 <td style={styles.td}>
                   <div style={{ fontWeight: 850, color: "var(--t1)", ...mono }}>{item.ticker}</div>
                   <div style={styles.tickerName}>{item.name}</div>
                 </td>
-                <td style={styles.tdMuted}>{row.label}</td>
+                <td style={styles.tdMuted}>{item.branch}</td>
                 <td style={{ ...styles.td, textAlign: "right" }}>
-                  <span style={{ ...styles.smdtPill, color: smdtColor(item.value, t), background: `${smdtColor(item.value, t)}18`, borderColor: `${smdtColor(item.value, t)}33`, ...mono }}>
-                    {item.value.toFixed(1)}%
-                  </span>
+                  {item.value == null ? (
+                    <span style={{ color: "var(--t4)" }}>--</span>
+                  ) : (
+                    <span style={{ ...styles.smdtPill, color: smdtColor(item.value, t), background: `${smdtColor(item.value, t)}18`, borderColor: `${smdtColor(item.value, t)}33`, ...mono }}>
+                      {item.value.toFixed(1)}%
+                    </span>
+                  )}
                 </td>
-                <td style={{ ...styles.td, textAlign: "right", color: item.delta == null ? "var(--t4)" : item.delta >= 0 ? t.G : t.R, ...mono }}>
-                  {item.delta == null ? "--" : `${item.delta >= 0 ? "+" : ""}${item.delta.toFixed(1)}`}
+                <td
+                  style={{ ...styles.td, textAlign: "right", color: item.delta == null ? "var(--t4)" : item.delta >= 0 ? t.G : t.R, ...mono }}
+                  title={[
+                    item.bottomDate && `Đáy ${fmtDate(item.bottomDate)}${Number.isFinite(item.bottomPrice) ? `: ${item.bottomPrice}` : ""}`,
+                    item.topDate && `Đỉnh ${fmtDate(item.topDate)}${Number.isFinite(item.topPrice) ? `: ${item.topPrice}` : ""}`,
+                  ].filter(Boolean).join(" · ")}
+                >
+                  {item.delta == null ? "--" : `${item.delta >= 0 ? "+" : ""}${item.delta.toFixed(2)}%`}
                 </td>
                 <td style={styles.td}>
                   <span style={{ ...styles.signalPill, background: item.signal.bg, color: item.signal.color }}>{item.signal.label}</span>
                 </td>
-                <td style={styles.tdMuted}>{fmtDate(item.date)}</td>
+                <td style={styles.tdMuted} title={[item.bottomDate && `Đáy ${fmtDate(item.bottomDate)}`, item.topDate && `Đỉnh ${fmtDate(item.topDate)}`].filter(Boolean).join(" · ")}>
+                  {fmtDate(item.leadDate || item.date)}
+                </td>
               </tr>
             ))}
           </tbody>
