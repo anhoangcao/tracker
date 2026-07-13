@@ -1038,32 +1038,33 @@ function TickerTable({ row, eventDate, tickerData, branchPath, smdtData }) {
   }, [eventDate, row.key]);
 
   const rows = useMemo(() => {
-    return performance.rows
-      .map((perf) => {
-        const ticker = perf.ticker;
-        const meta = tickerData.tickers.find((item) => item.key === ticker);
-        const point = getValueAtOrBefore(tickerData.matrix, tickerData.datesAsc, ticker, eventDate);
-        const signal = point.value == null
-          ? { label: "Theo dõi", color: t.t3, bg: "var(--elev)" }
-          : signalMeta(point.value, point.prev, t);
-        return {
-          ticker,
-          name: meta?.name || ticker,
-          branch: perf.branch || row.label,
-          value: point.value,
-          prev: point.prev,
-          date: point.date,
-          leadDate: perf.leadDate,
-          bottomDate: perf.bottomDate,
-          topDate: perf.topDate,
-          bottomPrice: perf.bottomPrice,
-          topPrice: perf.topPrice,
-          delta: perf.performancePct,
-          signal,
-        };
-      })
-      .sort(sortTickerAsc)
-      .slice(0, 60);
+    const uniqueByTicker = new Map();
+    for (const perf of performance.rows) {
+      const ticker = perf.ticker;
+      if (!ticker || uniqueByTicker.has(ticker)) continue;
+      const meta = tickerData.tickers.find((item) => item.key === ticker);
+      const point = getValueAtOrBefore(tickerData.matrix, tickerData.datesAsc, ticker, eventDate);
+      const signal = point.value == null
+        ? { label: "Theo dõi", color: t.t3, bg: "var(--elev)" }
+        : signalMeta(point.value, point.prev, t);
+      uniqueByTicker.set(ticker, {
+        ticker,
+        name: meta?.name || ticker,
+        branch: perf.branch || row.label,
+        value: point.value,
+        prev: point.prev,
+        date: point.date,
+        leadDate: perf.leadDate,
+        bottomDate: perf.bottomDate,
+        topDate: perf.topDate,
+        bottomPrice: perf.bottomPrice,
+        topPrice: perf.topPrice,
+        delta: perf.performancePct,
+        signal,
+      });
+    }
+
+    return [...uniqueByTicker.values()].sort(sortTickerAsc).slice(0, 60);
   }, [eventDate, performance.rows, row.label, t, tickerData.datesAsc, tickerData.matrix, tickerData.tickers]);
 
   if (branchPath.status === "loading" && !selectedBranchPath) {
@@ -1101,7 +1102,7 @@ function TickerTable({ row, eventDate, tickerData, branchPath, smdtData }) {
         <table style={styles.table}>
           <thead>
             <tr>
-              {["STT", "Mã", "Ngành", "SMDT", "Δ", "Tín hiệu", "Phiên"].map((col, index) => (
+              {["STT", "Mã", "Ngành", "SMDT", "HIỆU SUẤT", "Tín hiệu", "Phiên"].map((col, index) => (
                 <th key={col} style={{ ...styles.th, textAlign: index >= 3 && index <= 4 ? "right" : "left" }}>{col}</th>
               ))}
             </tr>
