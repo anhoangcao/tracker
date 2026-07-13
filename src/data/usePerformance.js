@@ -40,38 +40,39 @@ function normalize(reply) {
   };
 }
 
-function cacheKey(branchPath) {
-  return `${CACHE_KEY_PREFIX}:${branchPath}`;
+function cacheKey(branchPath, date) {
+  return `${CACHE_KEY_PREFIX}:${branchPath}:${date || "latest"}`;
 }
 
-function readCache(branchPath) {
+function readCache(branchPath, date) {
   if (!branchPath) return null;
   try {
-    return readDataCache(cacheKey(branchPath), { schemaVersion: CACHE_SCHEMA_VERSION });
+    return readDataCache(cacheKey(branchPath, date), { schemaVersion: CACHE_SCHEMA_VERSION });
   } catch {
     return null;
   }
 }
 
-function writeCache(branchPath, value) {
+function writeCache(branchPath, date, value) {
   if (!branchPath) return;
   try {
-    writeDataCache(cacheKey(branchPath), value, { schemaVersion: CACHE_SCHEMA_VERSION });
+    writeDataCache(cacheKey(branchPath, date), value, { schemaVersion: CACHE_SCHEMA_VERSION });
   } catch {
     // Bỏ qua nếu trình duyệt chặn hoặc quota localStorage đầy.
   }
 }
 
-export function usePerformance(branchPath) {
+export function usePerformance(branchPath, date) {
+  const requestKey = `${branchPath || ""}:${date || ""}`;
   const inFlightRef = useRef(null);
-  const inFlightPathRef = useRef("");
-  const latestPathRef = useRef(branchPath);
-  const cached = readCache(branchPath);
+  const inFlightKeyRef = useRef("");
+  const latestKeyRef = useRef(requestKey);
+  const cached = readCache(branchPath, date);
   const [state, setState] = useState(() => cached?.state || { rows: [], filter: {}, total: 0 });
   const [status, setStatus] = useState(() => (branchPath ? (cached?.state ? "ready" : "loading") : "idle"));
   const [error, setError] = useState(null);
   const [updatedAt, setUpdatedAt] = useState(() => (cached?.updatedAt ? new Date(cached.updatedAt) : null));
-  latestPathRef.current = branchPath;
+  latestKeyRef.current = requestKey;
 
   const fetchSnapshot = useCallback(async ({ force = false } = {}) => {
     if (!branchPath) {
@@ -80,8 +81,8 @@ export function usePerformance(branchPath) {
       setError(null);
       return null;
     }
-    if (inFlightRef.current && inFlightPathRef.current === branchPath && !force) return inFlightRef.current;
-    const localCached = readCache(branchPath);
+    if (inFlightRef.current && inFlightKeyRef.current === requestKey && !force) return inFlightRef.current;
+    const localCached = readCache(branchPath, date);
     if (!force && localCached?.state) {
       setState(localCached.state);
       setUpdatedAt(localCached.updatedAt ? new Date(localCached.updatedAt) : null);
@@ -94,39 +95,41 @@ export function usePerformance(branchPath) {
     const request = (async () => {
       setStatus((current) => (current === "ready" ? "ready" : "loading"));
       try {
-        const url = `${API_URL}?branch_path=${encodeURIComponent(branchPath)}`;
+        const params = new URLSearchParams({ branch_path: branchPath });
+        if (date) params.set("date", date);
+        const url = `${API_URL}?${params.toString()}`;
         const response = await fetch(force ? `${url}&_=${Date.now()}` : url, { cache: "no-store" });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const normalized = normalize(await response.json());
         const now = new Date();
-        if (latestPathRef.current === branchPath) {
+        if (latestKeyRef.current === requestKey) {
           setState(normalized);
           setUpdatedAt(now);
           setStatus("ready");
           setError(null);
         }
-        writeCache(branchPath, { state: normalized, updatedAt: now.toISOString() });
+        writeCache(branchPath, date, { state: normalized, updatedAt: now.toISOString() });
       } catch (err) {
-        const fallback = readCache(branchPath);
-        if (fallback?.state && latestPathRef.current === branchPath) {
+        const fallback = readCache(branchPath, date);
+        if (fallback?.state && latestKeyRef.current === requestKey) {
           setState(fallback.state);
           setUpdatedAt(fallback.updatedAt ? new Date(fallback.updatedAt) : null);
           setStatus("ready");
           setError(null);
-        } else if (latestPathRef.current === branchPath) {
+        } else if (latestKeyRef.current === requestKey) {
           setStatus("error");
           setError(err?.message || "Lỗi tải dữ liệu performance");
         }
       } finally {
         if (inFlightRef.current === request) inFlightRef.current = null;
-        if (inFlightRef.current === null) inFlightPathRef.current = "";
+        if (inFlightRef.current === null) inFlightKeyRef.current = "";
       }
     })();
 
     inFlightRef.current = request;
-    inFlightPathRef.current = branchPath;
+    inFlightKeyRef.current = requestKey;
     return request;
-  }, [branchPath]);
+  }, [branchPath, date, requestKey]);
 
   useEffect(() => {
     fetchSnapshot();

@@ -74,6 +74,15 @@ function fmtShort(date) {
   return date.slice(0, 5);
 }
 
+function toPerformanceMonth(date) {
+  if (!date) return "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    const [y, m] = date.split("-");
+    return `${m}-${y}`;
+  }
+  return date;
+}
+
 function normalizeName(value) {
   return String(value || "")
     .normalize("NFC")
@@ -153,6 +162,12 @@ function resolveBranchPath(row, branchPath) {
 
 function sortTickerAsc(a, b) {
   return a.ticker.localeCompare(b.ticker, "en", { sensitivity: "base", numeric: true });
+}
+
+function resolveActiveEventDate(row, preferredDate) {
+  const events = row?.events || [];
+  if (preferredDate && events.some((event) => event.date === preferredDate)) return preferredDate;
+  return events[events.length - 1]?.date || null;
 }
 
 function getValueAtOrBefore(matrix, datesAsc, ticker, date) {
@@ -1015,7 +1030,8 @@ function TickerTable({ row, eventDate, tickerData, branchPath, smdtData }) {
   const { t } = useTheme();
   const [openTicker, setOpenTicker] = useState(null);
   const selectedBranchPath = useMemo(() => resolveBranchPath(row, branchPath), [branchPath, row]);
-  const performance = usePerformance(selectedBranchPath);
+  const performanceMonth = toPerformanceMonth(eventDate);
+  const performance = usePerformance(selectedBranchPath, performanceMonth);
 
   useEffect(() => {
     setOpenTicker(null);
@@ -1046,12 +1062,7 @@ function TickerTable({ row, eventDate, tickerData, branchPath, smdtData }) {
           signal,
         };
       })
-      .sort((a, b) => {
-        if (Number.isFinite(b.delta) && Number.isFinite(a.delta)) return b.delta - a.delta;
-        if (Number.isFinite(b.delta)) return 1;
-        if (Number.isFinite(a.delta)) return -1;
-        return sortTickerAsc(a, b);
-      })
+      .sort(sortTickerAsc)
       .slice(0, 60);
   }, [eventDate, performance.rows, row.label, t, tickerData.datesAsc, tickerData.matrix, tickerData.tickers]);
 
@@ -1160,11 +1171,11 @@ function TickerTable({ row, eventDate, tickerData, branchPath, smdtData }) {
 }
 
 function DetailPanel({ row, highlightDate, onClose, tickerData, branchPath, smdtData }) {
-  const [activeDate, setActiveDate] = useState(highlightDate || row.events[row.events.length - 1]?.date || null);
+  const [activeDate, setActiveDate] = useState(() => resolveActiveEventDate(row, highlightDate));
   const panelRef = useRef(null);
 
   useEffect(() => {
-    setActiveDate(highlightDate || row.events[row.events.length - 1]?.date || null);
+    setActiveDate(resolveActiveEventDate(row, highlightDate));
   }, [highlightDate, row.key, row.events]);
 
   useEffect(() => {

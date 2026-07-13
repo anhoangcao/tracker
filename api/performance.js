@@ -9,12 +9,20 @@ function readBranchPath(req) {
   return String(value || "").trim();
 }
 
-async function fetchPerformanceFromSource(branchPath) {
-  const url = `${SOURCE_URL}?branch_path=${encodeURIComponent(branchPath)}`;
+function readDate(req) {
+  const raw = req.query?.date;
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  return String(value || "").trim();
+}
+
+async function fetchPerformanceFromSource(branchPath, date) {
+  const params = new URLSearchParams({ branch_path: branchPath });
+  if (date) params.set("date", date);
+  const url = `${SOURCE_URL}?${params.toString()}`;
   const response = await fetch(url, {
     method: "POST",
     headers: { Accept: "application/json", "Content-Type": "application/json" },
-    body: JSON.stringify({ branch_path: branchPath }),
+    body: JSON.stringify({ branch_path: branchPath, ...(date ? { date } : {}) }),
   });
 
   if (!response.ok) {
@@ -48,12 +56,14 @@ export default async function handler(req, res) {
   }
 
   const now = Date.now();
-  const cached = serverCache.get(branchPath);
+  const date = readDate(req);
+  const cacheKey = `${branchPath}:${date || "latest"}`;
+  const cached = serverCache.get(cacheKey);
 
   if (!cached || now - cached.lastFetched > CACHE_DURATION) {
     try {
-      serverCache.set(branchPath, {
-        data: await fetchPerformanceFromSource(branchPath),
+      serverCache.set(cacheKey, {
+        data: await fetchPerformanceFromSource(branchPath, date),
         lastFetched: now,
       });
     } catch (error) {
@@ -67,5 +77,5 @@ export default async function handler(req, res) {
     }
   }
 
-  return res.status(200).json(serverCache.get(branchPath)?.data || cached.data);
+  return res.status(200).json(serverCache.get(cacheKey)?.data || cached.data);
 }

@@ -914,6 +914,7 @@ function smdtDevPlugin() {
           const host = req.headers.host || "localhost:3000";
           const parsedUrl = new URL(reqUrl, `http://${host}`);
           const branchPath = String(parsedUrl.searchParams.get("branch_path") || "").trim();
+          const date = String(parsedUrl.searchParams.get("date") || "").trim();
           if (!branchPath) {
             res.statusCode = 400;
             res.setHeader("Content-Type", "application/json");
@@ -922,15 +923,18 @@ function smdtDevPlugin() {
           }
 
           const now = Date.now();
-          const cached = performanceDevCache.get(branchPath);
+          const cacheKey = `${branchPath}:${date || "latest"}`;
+          const cached = performanceDevCache.get(cacheKey);
           if (!cached || now - cached.lastFetched > PERFORMANCE_CACHE_DURATION) {
             try {
+              const params = new URLSearchParams({ branch_path: branchPath });
+              if (date) params.set("date", date);
               const response = await fetch(
-                `https://stocktradersai.vn/service/data/getPerformance?branch_path=${encodeURIComponent(branchPath)}`,
+                `https://stocktradersai.vn/service/data/getPerformance?${params.toString()}`,
                 {
                   method: "POST",
                   headers: { Accept: "application/json", "Content-Type": "application/json" },
-                  body: JSON.stringify({ branch_path: branchPath }),
+                  body: JSON.stringify({ branch_path: branchPath, ...(date ? { date } : {}) }),
                 },
               );
               if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -939,7 +943,7 @@ function smdtDevPlugin() {
                 throw new Error(`API response status ${data.status}`);
               if (!Array.isArray(data?.data))
                 throw new Error("API response missing data");
-              performanceDevCache.set(branchPath, { data, lastFetched: now });
+              performanceDevCache.set(cacheKey, { data, lastFetched: now });
             } catch (err) {
               console.error("Local dev performance proxy fetch error:", err);
               if (!cached) {
@@ -954,7 +958,7 @@ function smdtDevPlugin() {
           res.statusCode = 200;
           res.setHeader("Content-Type", "application/json");
           res.setHeader("Cache-Control", "no-store, max-age=0");
-          res.end(JSON.stringify(performanceDevCache.get(branchPath)?.data || cached.data));
+          res.end(JSON.stringify(performanceDevCache.get(cacheKey)?.data || cached.data));
         } else if (reqUrl.startsWith("/api/branch-path")) {
           const now = Date.now();
           if (
