@@ -1143,8 +1143,8 @@ function TickerTable({ row, eventDate, tickerData, branchPath, smdtData }) {
                 <td style={styles.td}>
                   <span style={{ ...styles.signalPill, background: item.signal.bg, color: item.signal.color }}>{item.signal.label}</span>
                 </td>
-                <td style={styles.tdMuted} title={[item.bottomDate && `Đáy ${fmtDate(item.bottomDate)}`, item.topDate && `Đỉnh ${fmtDate(item.topDate)}`].filter(Boolean).join(" · ")}>
-                  {fmtDate(item.leadDate || item.date)}
+                <td style={styles.tdMuted} title="Phiên SMDT từ getSMDTTickerCross">
+                  {fmtDate(item.date)}
                 </td>
               </tr>
             ))}
