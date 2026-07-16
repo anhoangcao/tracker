@@ -2,7 +2,7 @@ const LOGIN_API_URL = import.meta.env.VITE_LOGIN_API_URL || "/service/data/getUs
 const SOCIAL_API_URL = import.meta.env.VITE_SOCIAL_LOGIN_API_URL || "/service/data/getStockSocial";
 const REGISTER_API_URL = import.meta.env.VITE_REGISTER_API_URL || "/service/data/getUserRegister";
 const ACCESS_RIGHTS_API_URL = import.meta.env.VITE_ACCESS_RIGHTS_API_URL || "/service/data/getAccessRights";
-const CHANGE_PASSWORD_API_URL = import.meta.env.VITE_CHANGE_PASSWORD_API_URL || "/service/data/getUserChangePassword";
+const CHANGE_PASSWORD_API_URL = import.meta.env.VITE_CHANGE_PASSWORD_API_URL || "/service/api/getUserChangePassword";
 const SUCCESS_CODE = "S0000";
 const DEVICE_ID_KEY = "st-auth-device-id";
 
@@ -437,12 +437,11 @@ export async function getAccessRights({ account }) {
   };
 }
 
-export async function changePassword({ phoneNumber, password, userId }) {
+export async function changePassword({ phoneNumber, password }) {
   const normalizedPhone = normalizeText(phoneNumber);
-  const normalizedUserId = normalizeText(userId);
 
-  if (!normalizedPhone || !password || !normalizedUserId) {
-    throw new Error("Vui lòng nhập số điện thoại, user ID và mật khẩu mới.");
+  if (!normalizedPhone || !password) {
+    throw new Error("Vui lòng nhập số điện thoại và mật khẩu mới.");
   }
 
   const { data, reply } = await postJson(
@@ -451,7 +450,6 @@ export async function changePassword({ phoneNumber, password, userId }) {
       UserChangePasswordRequest: {
         phone_number: normalizedPhone,
         password,
-        user_id: normalizedUserId,
       },
     },
     REPLY_KEYS.changePassword,
@@ -460,7 +458,6 @@ export async function changePassword({ phoneNumber, password, userId }) {
 
   return {
     phoneNumber: normalizedPhone,
-    userId: normalizedUserId,
     reply,
     raw: data,
   };

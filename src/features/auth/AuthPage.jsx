@@ -259,7 +259,7 @@ function RegisterForm({ onSubmit, onSocialLogin, isSubmitting, error, message })
       </button>
       <div style={styles.note}>
         <i className="ti ti-info-circle" style={{ fontSize: 14 }} />
-        Tài khoản mới mặc định non-paid. Nâng cấp Premium để xem đầy đủ dữ liệu SMDT, dòng tiền và lịch sử không giới hạn.
+        Tài khoản mới mặc định non-paid. Nâng cấp Premium để xem đầy đủ dữ liệu không giới hạn.
       </div>
     </form>
   );
@@ -267,13 +267,12 @@ function RegisterForm({ onSubmit, onSocialLogin, isSubmitting, error, message })
 
 function ForgotPasswordForm({ onBack, onSubmit, isSubmitting, error, message }) {
   const [phoneNumber, setPhoneNumber] = useState("");
-  const [userId, setUserId] = useState("");
   const [password, setPassword] = useState("");
 
   return (
     <form onSubmit={(e) => {
       e.preventDefault();
-      onSubmit?.({ phoneNumber, userId, password });
+      onSubmit?.({ phoneNumber, password });
     }}>
       <div style={styles.formHead}>
         <button type="button" onClick={onBack} disabled={isSubmitting} style={styles.backBtn} title="Quay lại">
@@ -281,12 +280,11 @@ function ForgotPasswordForm({ onBack, onSubmit, isSubmitting, error, message }) 
         </button>
         <div>
           <div style={styles.formTitle}>Quên mật khẩu</div>
-          <div style={styles.formSub}>Cập nhật mật khẩu theo số điện thoại và user ID.</div>
+          <div style={styles.formSub}>Cập nhật mật khẩu theo số điện thoại.</div>
         </div>
       </div>
 
       <TextField label="Số điện thoại" type="tel" placeholder="0989000005" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} disabled={isSubmitting} />
-      <TextField label="User ID" type="text" placeholder="1" value={userId} onChange={(e) => setUserId(e.target.value)} disabled={isSubmitting} />
       <TextField label="Mật khẩu mới" type="password" placeholder="123456" value={password} onChange={(e) => setPassword(e.target.value)} disabled={isSubmitting} />
 
       <StatusMessage type="error">{error}</StatusMessage>
