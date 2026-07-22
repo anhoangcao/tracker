@@ -6,6 +6,7 @@ const DEFAULT_OTP_TTL_SECONDS = 5 * 60;
 const DEFAULT_VERIFIED_TTL_SECONDS = 10 * 60;
 const DEFAULT_OTP_PHONE_COOLDOWN_SECONDS = 60;
 const DEFAULT_OTP_PHONE_HOURLY_LIMIT = 5;
+const DEFAULT_OTP_PHONE_DAILY_LIMIT = 2;
 const DEFAULT_OTP_IP_HOURLY_LIMIT = 20;
 const TURNSTILE_VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
 const STOCKTRADERS_REGISTER_URL = "https://stocktraders.vn/service/data/getUserRegister";
@@ -96,6 +97,7 @@ export function getEnvConfig() {
     verifiedTtlSeconds: readPositiveInt(process.env.FPT_SMS_VERIFIED_TTL_SECONDS, DEFAULT_VERIFIED_TTL_SECONDS),
     phoneCooldownSeconds: readPositiveInt(process.env.FPT_SMS_OTP_PHONE_COOLDOWN_SECONDS, DEFAULT_OTP_PHONE_COOLDOWN_SECONDS),
     phoneHourlyLimit: readPositiveInt(process.env.FPT_SMS_OTP_PHONE_HOURLY_LIMIT, DEFAULT_OTP_PHONE_HOURLY_LIMIT),
+    phoneDailyLimit: readPositiveInt(process.env.FPT_SMS_OTP_PHONE_DAILY_LIMIT, DEFAULT_OTP_PHONE_DAILY_LIMIT),
     ipHourlyLimit: readPositiveInt(process.env.FPT_SMS_OTP_IP_HOURLY_LIMIT, DEFAULT_OTP_IP_HOURLY_LIMIT),
     turnstileSecretKey: normalizeText(process.env.TURNSTILE_SECRET_KEY),
     exposeDebugOtp: process.env.FPT_SMS_EXPOSE_TEST_OTP === "1" && process.env.NODE_ENV !== "production",
@@ -145,6 +147,7 @@ export function assertOtpRateLimit({ config, phone, purpose, ip }) {
   const ipKey = `ip:${purpose}:${ip || "unknown"}`;
   const cooldownMs = config.phoneCooldownSeconds * 1000;
   const hourMs = 60 * 60 * 1000;
+  const dayMs = 24 * 60 * 60 * 1000;
 
   const phoneRecord = getRateRecord(phoneKey);
   const ipRecord = getRateRecord(ipKey);
@@ -155,11 +158,16 @@ export function assertOtpRateLimit({ config, phone, purpose, ip }) {
     throw new Error(`Vui lòng chờ ${waitSeconds} giây trước khi gửi lại OTP.`);
   }
 
-  phoneRecord.timestamps = phoneRecord.timestamps.filter((time) => now - time < hourMs);
+  phoneRecord.timestamps = phoneRecord.timestamps.filter((time) => now - time < dayMs);
   ipRecord.timestamps = ipRecord.timestamps.filter((time) => now - time < hourMs);
+  const phoneHourlyCount = phoneRecord.timestamps.filter((time) => now - time < hourMs).length;
 
-  if (phoneRecord.timestamps.length >= config.phoneHourlyLimit) {
+  if (phoneHourlyCount >= config.phoneHourlyLimit) {
     throw new Error("Số điện thoại này đã yêu cầu OTP quá nhiều lần. Vui lòng thử lại sau.");
+  }
+
+  if (phoneRecord.timestamps.length >= config.phoneDailyLimit) {
+    throw new Error(`Số điện thoại này đã dùng hết ${config.phoneDailyLimit} lượt OTP trong 24 giờ. Vui lòng thử lại sau.`);
   }
 
   if (ipRecord.timestamps.length >= config.ipHourlyLimit) {
